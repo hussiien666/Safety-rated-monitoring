@@ -1,0 +1,390 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="allsubs5">
+  <link
+    name="b1">
+    <inertial>
+      <origin
+        xyz="0.69514 -1.2988 0.90674"
+        rpy="0 0 0" />
+      <mass
+        value="0.06306" />
+      <inertia
+        ixx="1.5289E-05"
+        ixy="-3.1071E-07"
+        ixz="-2.394E-08"
+        iyy="3.2674E-05"
+        iyz="-7.0995E-09"
+        izz="3.4483E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs5/meshes/b1.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.75294 0.75294 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs5/meshes/b1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="base">
+    <inertial>
+      <origin
+        xyz="0.69374 0.88485 1.3121"
+        rpy="0 0 0" />
+      <mass
+        value="0.06306" />
+      <inertia
+        ixx="3.4483E-05"
+        ixy="-2.394E-08"
+        ixz="-7.0995E-09"
+        iyy="1.5289E-05"
+        iyz="-3.1071E-07"
+        izz="3.2674E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs5/meshes/base.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.75294 0.75294 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs5/meshes/base.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="base"
+    type="revolute">
+    <origin
+      xyz="-0.18971 -2.6109 0.21301"
+      rpy="1.5708 -1.5708 0" />
+    <parent
+      link="b1" />
+    <child
+      link="base" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="5.2"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="m2">
+    <inertial>
+      <origin
+        xyz="-0.0037253 -0.02388 0.00093576"
+        rpy="0 0 0" />
+      <mass
+        value="0.045999" />
+      <inertia
+        ixx="1.1998E-05"
+        ixy="-1.0185E-08"
+        ixz="1.4986E-09"
+        iyy="6.9671E-06"
+        iyz="1.91E-07"
+        izz="1.0214E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs5/meshes/m2.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.75294 0.75294 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs5/meshes/m2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="motor 2"
+    type="revolute">
+    <origin
+      xyz="0.69953 0.89348 1.2415"
+      rpy="-1.5708 0 0.02104" />
+    <parent
+      link="base" />
+    <child
+      link="m2" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="-2.6"
+      upper="2.6"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="m3">
+    <inertial>
+      <origin
+        xyz="-0.0055045 0.076308 0.00054414"
+        rpy="0 0 0" />
+      <mass
+        value="0.069333" />
+      <inertia
+        ixx="2.2102E-05"
+        ixy="-1.0185E-08"
+        ixz="1.4986E-09"
+        iyy="1.4329E-05"
+        iyz="1.91E-07"
+        izz="1.5358E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs5/meshes/m3.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.75294 0.75294 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs5/meshes/m3.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="motor 3"
+    type="revolute">
+    <origin
+      xyz="0 -0.014841 0"
+      rpy="0 0 -0.37855" />
+    <parent
+      link="m2" />
+    <child
+      link="m3" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-2.6"
+      upper="2.6"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="m4">
+    <inertial>
+      <origin
+        xyz="-1.96233705724858E-05 0.0725175862514644 0.000544139227617424"
+        rpy="0 0 0" />
+      <mass
+        value="0.069332741724036" />
+      <inertia
+        ixx="2.21022107700261E-05"
+        ixy="-1.01848679684329E-08"
+        ixz="1.49859446841148E-09"
+        iyy="1.43289435190143E-05"
+        iyz="1.90997183187145E-07"
+        izz="1.53577419697228E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs5/meshes/m4.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs5/meshes/m4.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="motor 4"
+    type="revolute">
+    <origin
+      xyz="-0.0054849 0.10879 0"
+      rpy="0 0 0" />
+    <parent
+      link="m3" />
+    <child
+      link="m4" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-2.6"
+      upper="2.6"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="m5">
+    <inertial>
+      <origin
+        xyz="0.000531789431959862 0.042930660869015 -2.25159693809651E-05"
+        rpy="0 0 0" />
+      <mass
+        value="0.0579314581185934" />
+      <inertia
+        ixx="9.18901969508228E-06"
+        ixy="1.86151039844476E-07"
+        ixz="-1.03128517198352E-08"
+        iyy="1.58279984382518E-05"
+        iyz="1.49860317523996E-09"
+        izz="1.77886093533445E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs5/meshes/m5.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs5/meshes/m5.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="motor 5"
+    type="revolute">
+    <origin
+      xyz="0 0.105 0"
+      rpy="2.763 -1.5708 0" />
+    <parent
+      link="m4" />
+    <child
+      link="m5" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="-2.6"
+      upper="2.6"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="end effector">
+    <inertial>
+      <origin
+        xyz="-1.78941246624653E-05 0.00648560913068941 0.0405004504403841"
+        rpy="0 0 0" />
+      <mass
+        value="0.072894485787605" />
+      <inertia
+        ixx="1.64241390695469E-05"
+        ixy="-1.0312850319729E-08"
+        ixz="1.49860286026894E-09"
+        iyy="1.19399620907913E-05"
+        iyz="2.02586877707418E-07"
+        izz="1.79577756916239E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs5/meshes/end effector.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs5/meshes/end effector.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="end effectorr"
+    type="fixed">
+    <origin
+      xyz="0.0135 0.06866 0"
+      rpy="-1.5708 0.0030322 0" />
+    <parent
+      link="m5" />
+    <child
+      link="end effector" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+</robot>

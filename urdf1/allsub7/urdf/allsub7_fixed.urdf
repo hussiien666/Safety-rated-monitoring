@@ -1,0 +1,390 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="allsub7">
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="0.684165564842599 -1.35064919854525 0.875958781985174"
+        rpy="0 0 0" />
+      <mass
+        value="0.063060131723405" />
+      <inertia
+        ixx="3.44830204143743E-05"
+        ixy="2.39403060930292E-08"
+        ixz="-7.09951919332136E-09"
+        iyy="1.52894277056683E-05"
+        iyz="3.10714055046854E-07"
+        izz="3.26743127035598E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsub7/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsub7/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="base ">
+    <inertial>
+      <origin
+        xyz="0.69374 0.88485 1.3121"
+        rpy="0 0 0" />
+      <mass
+        value="0.06306" />
+      <inertia
+        ixx="3.4483E-05"
+        ixy="-2.394E-08"
+        ixz="-7.0995E-09"
+        iyy="1.5289E-05"
+        iyz="-3.1071E-07"
+        izz="3.2674E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsub7/meshes/base .STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.75294 0.75294 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsub7/meshes/base .STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="base"
+    type="revolute">
+    <origin
+      xyz="1.3779 -2.2355 2.1881"
+      rpy="-3.1416 0 3.1416" />
+    <parent
+      link="base_link" />
+    <child
+      link="base " />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="5.2"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="motor 2">
+    <inertial>
+      <origin
+        xyz="-2.9577962221361E-05 -0.0260964253204153 0.000935762721699041"
+        rpy="0 0 0" />
+      <mass
+        value="0.0459988228397356" />
+      <inertia
+        ixx="1.19980790641218E-05"
+        ixy="-1.01847454010814E-08"
+        ixz="1.49860025109859E-09"
+        iyy="6.9671314919265E-06"
+        iyz="1.90997285064904E-07"
+        izz="1.02140083091046E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsub7/meshes/motor 2.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsub7/meshes/motor 2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="m2"
+    type="revolute">
+    <origin
+      xyz="0.69584 0.8934 1.2393"
+      rpy="-1.5708 0 2.1519" />
+    <parent
+      link="base " />
+    <child
+      link="motor 2" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="-2.6"
+      upper="2.6"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="motor 3">
+    <inertial>
+      <origin
+        xyz="-1.96235058775862E-05 0.0725175856474282 0.000544138341938449"
+        rpy="0 0 0" />
+      <mass
+        value="0.0693327406740201" />
+      <inertia
+        ixx="2.21022110451283E-05"
+        ixy="-1.01847454024184E-08"
+        ixz="1.49860025120023E-09"
+        iyy="1.43289437139209E-05"
+        iyz="1.90997285064876E-07"
+        izz="1.53577419690361E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsub7/meshes/motor 3.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsub7/meshes/motor 3.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="m3"
+    type="revolute">
+    <origin
+      xyz="0 -0.011508 0"
+      rpy="0 0 0" />
+    <parent
+      link="motor 2" />
+    <child
+      link="motor 3" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-2.6"
+      upper="2.6"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="motor 4">
+    <inertial>
+      <origin
+        xyz="-1.96235059128913E-05 0.0725175856473848 0.00054413834194933"
+        rpy="0 0 0" />
+      <mass
+        value="0.0693327406740205" />
+      <inertia
+        ixx="2.21022110451285E-05"
+        ixy="-1.01847454016985E-08"
+        ixz="1.4986002512375E-09"
+        iyy="1.4328943713921E-05"
+        iyz="1.90997285064782E-07"
+        izz="1.53577419690363E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsub7/meshes/motor 4.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsub7/meshes/motor 4.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="m4"
+    type="revolute">
+    <origin
+      xyz="0 0.105 0"
+      rpy="0 0 0" />
+    <parent
+      link="motor 3" />
+    <child
+      link="motor 4" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-2.6"
+      upper="2.6"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="motor 5">
+    <inertial>
+      <origin
+        xyz="0.000531789331912336 0.0429306609134357 -2.25159287091659E-05"
+        rpy="0 0 0" />
+      <mass
+        value="0.0579314563207291" />
+      <inertia
+        ixx="9.18901944218219E-06"
+        ixy="1.86150969223297E-07"
+        ixz="-1.03129210121565E-08"
+        iyy="1.58279983605299E-05"
+        iyz="1.49860348230188E-09"
+        izz="1.77886090376372E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsub7/meshes/motor 5.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsub7/meshes/motor 5.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="m5"
+    type="revolute">
+    <origin
+      xyz="0 0.105 0"
+      rpy="3.1416 -1.5708 0" />
+    <parent
+      link="motor 4" />
+    <child
+      link="motor 5" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="-2.6"
+      upper="2.6"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="motor 6">
+    <inertial>
+      <origin
+        xyz="-1.7894E-05 0.0064856 0.03866"
+        rpy="0 0 0" />
+      <mass
+        value="0.072894" />
+      <inertia
+        ixx="1.6424E-05"
+        ixy="-1.0313E-08"
+        ixz="1.4986E-09"
+        iyy="1.194E-05"
+        iyz="2.0259E-07"
+        izz="1.7958E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsub7/meshes/motor 6.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.75294 0.75294 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsub7/meshes/motor 6.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="end effector"
+    type="fixed">
+    <origin
+      xyz="0.0135 0.0705 0"
+      rpy="1.5708 0 3.1416" />
+    <parent
+      link="motor 5" />
+    <child
+      link="motor 6" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+</robot>

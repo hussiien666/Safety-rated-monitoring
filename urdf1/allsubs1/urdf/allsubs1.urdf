@@ -1,0 +1,332 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="allsubs1">
+  <link
+    name="b1">
+    <inertial>
+      <origin
+        xyz="0.69514 -1.2988 0.90674"
+        rpy="0 0 0" />
+      <mass
+        value="0.06306" />
+      <inertia
+        ixx="1.5289E-05"
+        ixy="-3.1071E-07"
+        ixz="-2.394E-08"
+        iyy="3.2674E-05"
+        iyz="-7.0995E-09"
+        izz="3.4483E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs1/meshes/b1.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.75294 0.75294 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs1/meshes/b1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="j2">
+    <inertial>
+      <origin
+        xyz="-2.95779101131544E-05 0.0287515189640373 0.000935763764680964"
+        rpy="0 0 0" />
+      <mass
+        value="0.0459988257481869" />
+      <inertia
+        ixx="1.19980791991195E-05"
+        ixy="-1.01847475696881E-08"
+        ixz="1.49858325978155E-09"
+        iyy="6.96713161909025E-06"
+        iyz="1.90997270709036E-07"
+        izz="1.02140084068949E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs1/meshes/j2.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs1/meshes/j2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint 2"
+    type="revolute">
+    <origin
+      xyz="0.70369 -1.3168 0.90884"
+      rpy="3.1416 -1.5498 0" />
+    <parent
+      link="b1" />
+    <child
+      link="j2" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="0"
+      upper="5.2"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="j3">
+    <inertial>
+      <origin
+        xyz="-1.9623370334565E-05 0.0725175862532941 0.000544139226861695"
+        rpy="0 0 0" />
+      <mass
+        value="0.0693327417319746" />
+      <inertia
+        ixx="2.21022107700978E-05"
+        ixy="-1.01848679514028E-08"
+        ixz="1.49859442153858E-09"
+        iyy="1.43289435191073E-05"
+        iyz="1.90997183218559E-07"
+        izz="1.53577419697582E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs1/meshes/j3.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs1/meshes/j3.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint 3"
+    type="revolute">
+    <origin
+      xyz="0 0.04334 0"
+      rpy="0 0 -0.37855" />
+    <parent
+      link="j2" />
+    <child
+      link="j3" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="5.2"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="j4">
+    <inertial>
+      <origin
+        xyz="-1.9623370334787E-05 0.0725175862532941 0.000544139226854923"
+        rpy="0 0 0" />
+      <mass
+        value="0.0693327417319744" />
+      <inertia
+        ixx="2.21022107700976E-05"
+        ixy="-1.01848679514261E-08"
+        ixz="1.49859442163816E-09"
+        iyy="1.43289435191073E-05"
+        iyz="1.90997183218435E-07"
+        izz="1.5357741969758E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs1/meshes/j4.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs1/meshes/j4.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint 4"
+    type="revolute">
+    <origin
+      xyz="0 0.105 0"
+      rpy="0 0 0" />
+    <parent
+      link="j3" />
+    <child
+      link="j4" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="5.2"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="j5">
+    <inertial>
+      <origin
+        xyz="0.000531789431416074 0.0429306608690703 -2.25159690836474E-05"
+        rpy="0 0 0" />
+      <mass
+        value="0.0579314581274067" />
+      <inertia
+        ixx="9.18901969517939E-06"
+        ixy="1.86151039878829E-07"
+        ixz="-1.03128517014371E-08"
+        iyy="1.58279984382877E-05"
+        iyz="1.49860312710147E-09"
+        izz="1.77886093534218E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs1/meshes/j5.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs1/meshes/j5.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint 5"
+    type="revolute">
+    <origin
+      xyz="0 0.105 0"
+      rpy="2.763 -1.5708 0" />
+    <parent
+      link="j4" />
+    <child
+      link="j5" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="0"
+      upper="5.2"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="end effector">
+    <inertial>
+      <origin
+        xyz="-1.7894124426987E-05 0.00648560912965779 0.0405004504381026"
+        rpy="0 0 0" />
+      <mass
+        value="0.0728944857964254" />
+      <inertia
+        ixx="1.64241390696243E-05"
+        ixy="-1.0312850301322E-08"
+        ixz="1.49860281211433E-09"
+        iyy="1.19399620908884E-05"
+        iyz="2.02586877741791E-07"
+        izz="1.79577756916598E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs1/meshes/end effector.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://allsubs1/meshes/end effector.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="end effector "
+    type="fixed">
+    <origin
+      xyz="0.0135 0.06866 0"
+      rpy="-1.5708 0.0030322 0" />
+    <parent
+      link="j5" />
+    <child
+      link="end effector" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+</robot>
