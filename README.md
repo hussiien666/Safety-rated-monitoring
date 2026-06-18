@@ -283,6 +283,12 @@ GRAD VISION/
 Requires **Python 3.10** (the shared env must stay on `numpy < 2`).
 
 ```bash
+py -m pip install -r requirements.txt
+```
+
+…or install the pieces manually:
+
+```bash
 py -m pip install PySide6 opencv-python ultralytics mediapipe ^
                   insightface onnxruntime-gpu ^
                   pyrender yourdfpy trimesh ^

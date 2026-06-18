@@ -1,0 +1,33 @@
+# GRAD VISION — Cobot Vision Safety System
+# Python 3.10.  Install:  py -m pip install -r requirements.txt
+#
+# NOTE: numpy MUST stay < 2 — numpy 2 breaks the tensorflow/mediapipe import
+# chain in this environment. Keep opencv-python on the 4.10.x line.
+
+# --- Core vision / ML ---
+numpy==1.26.4
+opencv-python==4.10.0.84
+ultralytics>=8.2,<9            # YOLOv8 object detection
+mediapipe>=0.10,<0.11          # hand tracking
+torch>=2.1                     # YOLO backend (CUDA or CPU build)
+
+# --- Face recognition ---
+insightface>=0.7.3             # buffalo_l recogniser
+onnxruntime-gpu>=1.17          # CUDA; swap for `onnxruntime` on CPU-only machines
+
+# --- 3D robotic arm ---
+pyrender>=0.1.45               # offscreen URDF rendering
+yourdfpy>=0.0.56               # URDF loader
+trimesh>=4.0                   # mesh handling
+pybullet>=3.2.5                # PHASE5 path-tracing simulation
+
+# --- GUI ---
+PySide6>=6.6                   # Qt 6 mission-control console
+
+# --- Voice alerts (optional but recommended) ---
+# On Windows the app falls back to the built-in SAPI voice with nothing
+# installed; pyttsx3 gives nicer in-process speech.
+pyttsx3>=2.90
+
+# --- Hardware link (PHASE3 only) ---
+pyserial>=3.5                  # Arduino serial bridge
