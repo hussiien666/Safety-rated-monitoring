@@ -35,7 +35,7 @@ FRAME_WIDTH      = 640
 FRAME_HEIGHT     = 460
 FLIP_VIEW        = True
 
-YOLO_MODEL_PATH  = "yolov8s.pt"
+YOLO_MODEL_PATH  = "C:\Users\original\OneDrive\Desktop\GRAD VISION\Models\yolov8s.pt"
 YOLO_CONF        = 0.70
 
 MAX_HANDS        = 2
@@ -59,7 +59,7 @@ RANGE_JOINTS     = {
 FIXED_JOINTS     = {3: 100.0}
 ARM_SPEED        = 0.45
 
-FACE_DB_PATH     = r"C:\Users\original\OneDrive\Desktop\GRAD VISION\faces_db.npz"
+FACE_DB_PATH     = r"C:\Users\original\OneDrive\Desktop\GRAD VISION\Models\faces_db.npz"
 FACE_THRESHOLD   = 0.50
 FACE_EVERY_N     = 2
 
