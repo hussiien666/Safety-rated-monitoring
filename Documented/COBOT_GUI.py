@@ -1635,13 +1635,16 @@ class MainWindow(QMainWindow):
 
     # ---------------------------------------------- safety alerts / e-stop ---
     def _maybe_voice(self, r: FrameResult):
-        """On *entering* the red zone, fire a fixed-length alert: flash the camera
-        feed red and sound the voice + buzzer, both for RED_ALERT_SECS, then they
-        stop on their own (even if the hand is still in the zone)."""
+        """On *entering* the red zone, fire the alert: flash the camera feed red
+        and sound the voice + buzzer (capped at RED_ALERT_SECS). As soon as the
+        hand leaves the red zone, the buzzer and flashing are stopped early."""
         in_red = (r.state == "RED")                   # Is a hand too close this frame?
         if in_red and not self._was_red:              # Rising edge → just entered the red zone.
             self.audio.alert_red_zone(RED_ALERT_SECS) # Fire the voice + buzzer alert.
             self.view_arm.start_flash(int(RED_ALERT_SECS * 1000))  # Flash the arm feed red.
+        elif not in_red and self._was_red:            # Falling edge → hand just left the red zone.
+            self.audio.stop_buzzer()                  # Silence the buzzer immediately.
+            self.view_arm.stop_flash()                # Stop the red flashing immediately.
         self._was_red = in_red                        # Remember for next frame.
 
     def _maybe_greet(self, r: FrameResult):
