@@ -35,7 +35,7 @@ FRAME_WIDTH      = 640
 FRAME_HEIGHT     = 460
 FLIP_VIEW        = True
 
-YOLO_MODEL_PATH  = "C:\Users\original\OneDrive\Desktop\GRAD VISION\Models\yolov8s.pt"
+YOLO_MODEL_PATH  = "yolov8s.pt"
 YOLO_CONF        = 0.70
 
 MAX_HANDS        = 2
@@ -47,7 +47,7 @@ THRESHOLD_MIN    = 4_000
 THRESHOLD_MAX    = 150_000
 THRESHOLD_STEP   = 2_000
 
-URDF_PATH = r"C:\Users\original\OneDrive\Desktop\GRAD VISION\urdf1\allsub7\urdf\allsub7.urdf"
+URDF_PATH = r"C:\Users\MMAAF\Safety-rated-monitoring\urdf1\allsub7\urdf\allsub7.urdf"
 ARM_W, ARM_H     = 760, 560
 ARM_SWEEP_DEG    = 100.0
 RANGE_JOINTS     = {
@@ -59,7 +59,7 @@ RANGE_JOINTS     = {
 FIXED_JOINTS     = {3: 100.0}
 ARM_SPEED        = 0.45
 
-FACE_DB_PATH     = r"C:\Users\original\OneDrive\Desktop\GRAD VISION\Models\faces_db.npz"
+FACE_DB_PATH     = r"C:\Users\MMAAF\Safety-rated-monitoring-\Models\faces_db.npz"
 FACE_THRESHOLD   = 0.50
 FACE_EVERY_N     = 2
 
@@ -1509,13 +1509,16 @@ class MainWindow(QMainWindow):
         self._log(f"Object detection {'enabled' if on else 'disabled'}")
 
     def _maybe_voice(self, r: FrameResult):
-        """On *entering* the red zone, fire a fixed-length alert: flash the camera
-        feed red and sound the voice + buzzer, both for RED_ALERT_SECS, then they
-        stop on their own (even if the hand is still in the zone)."""
+        """On *entering* the red zone, fire the alert: flash the camera feed red
+        and sound the voice + buzzer (capped at RED_ALERT_SECS). As soon as the
+        hand leaves the red zone, the buzzer and flashing are stopped early."""
         in_red = (r.state == "RED")
         if in_red and not self._was_red:
             self.audio.alert_red_zone(RED_ALERT_SECS)
             self.view_arm.start_flash(int(RED_ALERT_SECS * 1000))
+        elif not in_red and self._was_red:
+            self.audio.stop_buzzer()
+            self.view_arm.stop_flash()
         self._was_red = in_red
 
     def _maybe_greet(self, r: FrameResult):
