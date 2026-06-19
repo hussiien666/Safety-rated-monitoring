@@ -13,9 +13,6 @@ ser = serial.Serial("COM4",9600)
 
 time.sleep(2)
 
-# =========================
-# Configuration constants
-# =========================
 CAM_INDEX = 0
 FRAME_WIDTH = 640
 FRAME_HEIGHT = 460
@@ -25,7 +22,7 @@ WINDOW_NAME = "Cobot Vision Safety Monitor"
 
 YOLO_MODEL_PATH = "yolov8s.pt"
 YOLO_CONF_THRESHOLD = 0.5
-YOLO_DEVICE = "cuda"  # Use None for auto, or "cpu" / "0" for GPU index
+YOLO_DEVICE = "cuda"
 
 MAX_HANDS = 2
 MODEL_COMPLEXITY = 0
@@ -192,7 +189,6 @@ while True:
     if FLIP_VIEW:
         frame = cv2.flip(frame, 1)
 
-    # YOLO detection
     yolo_kwargs = {
         "conf": YOLO_CONF_THRESHOLD,
         "verbose": False,
@@ -276,13 +272,6 @@ while True:
 
     cv2.imshow(WINDOW_NAME, frame)
 
-    # waitKeyEx returns the full keycode - arrow keys work on all OSes.
-    # waitKey(1) & 0xFF only keeps the low byte, breaking arrow keys.
-    #
-    # Keycodes:  Windows   Linux    macOS
-    #   Up       2490368   65362    63232
-    #   Down     2621440   65364    63233
-    # +/- keys work as a fallback on every platform.
     key = cv2.waitKeyEx(1)
 
     if key == ord("q"):

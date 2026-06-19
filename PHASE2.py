@@ -18,20 +18,18 @@ import cv2
 import mediapipe as mp
 import time
 
-# -- Configuration --------------------------------------------------------------
 
 CAMERA_INDEX      = 0
 WINDOW_NAME       = "Cobot Safety Monitor"
 
 DEFAULT_THRESHOLD = 40_000
 THRESHOLD_STEP    = 2_000
-THRESHOLD_MAX     = 150_000     # upper clamp
+THRESHOLD_MAX     = 150_000
 
 MAX_HANDS         = 2
 DETECTION_CONF    = 0.7
 TRACKING_CONF     = 0.6
 
-# BGR colours
 CLR_GREEN   = (0,   210,  80)
 CLR_RED     = (0,    40, 230)
 CLR_WHITE   = (255, 255, 255)
@@ -41,7 +39,6 @@ CLR_GRAY    = (160, 160, 160)
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 
-# -- MediaPipe setup ------------------------------------------------------------
 
 mp_hands   = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
@@ -50,7 +47,6 @@ LANDMARK_SPEC   = mp_drawing.DrawingSpec(color=CLR_WHITE,  thickness=2, circle_r
 CONNECTION_SPEC = mp_drawing.DrawingSpec(color=CLR_YELLOW, thickness=2)
 
 
-# -- Helper functions -----------------------------------------------------------
 
 def compute_bounding_box(hand_landmarks, frame_w: int, frame_h: int) -> dict:
     """Return pixel bounding-box metrics for one hand."""
@@ -147,7 +143,6 @@ def draw_threshold_indicator(frame, threshold: int) -> None:
                 FONT, 0.38, CLR_GRAY, 1, cv2.LINE_AA)
 
 
-# -- Main -----------------------------------------------------------------------
 
 def main() -> None:
     cap = cv2.VideoCapture(CAMERA_INDEX)
@@ -212,13 +207,6 @@ def main() -> None:
 
             cv2.imshow(WINDOW_NAME, frame)
 
-            # waitKeyEx returns the full keycode - arrow keys work on all OSes.
-            # waitKey(1) & 0xFF only keeps the low byte, breaking arrow keys.
-            #
-            # Keycodes:  Windows   Linux    macOS
-            #   Up       2490368   65362    63232
-            #   Down     2621440   65364    63233
-            # +/- keys work as a fallback on every platform.
             key = cv2.waitKeyEx(1)
 
             if key == ord("q"):

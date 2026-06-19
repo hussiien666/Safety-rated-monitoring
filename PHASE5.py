@@ -57,7 +57,6 @@ def get_ee_pos():
 
 def move_joints_to(target_pos):
     joint_positions = p.calculateInverseKinematics(robot, end_effector, target_pos)
-    # joint_positions[k] corresponds to movable_joints[k], NOT to joint index k.
     for k, j in enumerate(movable_joints):
         if k >= len(joint_positions):
             break
@@ -78,18 +77,17 @@ def build_shape(shape_id, center, size):
     """Return a list of waypoints for the chosen shape, centred on `center`."""
     cx, cy, cz = center
     s = size
-    if shape_id == 0:                      # Square
+    if shape_id == 0:
         h = s / 2
         return [[cx - h, cy - h, cz], [cx + h, cy - h, cz],
                 [cx + h, cy + h, cz], [cx - h, cy + h, cz]]
-    if shape_id == 1:                      # Rectangle
+    if shape_id == 1:
         w, h = s * 0.75, s * 0.45
         return [[cx - w, cy - h, cz], [cx + w, cy - h, cz],
                 [cx + w, cy + h, cz], [cx - w, cy + h, cz]]
-    if shape_id == 2:                      # Triangle
+    if shape_id == 2:
         h = s / 2
         return [[cx, cy + h, cz], [cx + h, cy - h, cz], [cx - h, cy - h, cz]]
-    # Circle (approximated by N points)
     n = 36
     r = s / 2
     return [[cx + r * math.cos(2 * math.pi * k / n),
@@ -177,7 +175,6 @@ print("Simulation running. Use the panel on the right to control it.")
 
 
 while True:
-    # ---- read the control panel ----
     shape_id = int(round(p.readUserDebugParameter(slider_shape)))
     speed    = p.readUserDebugParameter(slider_speed)
     size     = p.readUserDebugParameter(slider_size)
@@ -225,7 +222,6 @@ while True:
 
     p.resetBasePositionAndOrientation(target_marker, target, [0, 0, 0, 1])
 
-    # actual trail (green on-path / red off-path)
     color = [0.2, 0.9, 0.4] if on_path else [1, 0.25, 0.25]
     trail_lines.append(p.addUserDebugLine(prev_pos, curr_pos,
                                           lineColorRGB=color, lineWidth=4, lifeTime=0))

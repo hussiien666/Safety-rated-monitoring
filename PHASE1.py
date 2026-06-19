@@ -3,19 +3,16 @@ import cv2
 import time
 import torch
 
-# ── Config ────────────────────────────────────────────────────────────────────
 CONF_THRESHOLD  = 0.70
 MODEL_PATH      = "yolov8s.pt"
 CAMERA_INDEX    = 0
 WINDOW_NAME     = "YOLO Detection"
 
-# Colours (BGR)
 BOX_COLOR   = (0, 255, 0)
 DOT_COLOR   = (0, 0, 255)
 FPS_COLOR   = (255, 0, 0)
 FONT        = cv2.FONT_HERSHEY_SIMPLEX
 
-# ── Setup ─────────────────────────────────────────────────────────────────────
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Running on: {device}")
 
@@ -25,7 +22,6 @@ cap = cv2.VideoCapture(CAMERA_INDEX)
 if not cap.isOpened():
     raise RuntimeError(f"Cannot open camera index {CAMERA_INDEX}")
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
 def draw_detection(frame, box, label: str, conf: float) -> None:
     x1, y1, x2, y2 = map(int, box.xyxy[0])
     cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
@@ -61,7 +57,6 @@ try:
             conf  = float(box.conf[0])
             draw_detection(frame, box, label, conf)
 
-        # FPS
         now       = time.perf_counter()
         fps       = 1.0 / (now - prev_time)
         prev_time = now

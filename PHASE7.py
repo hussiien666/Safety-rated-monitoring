@@ -8,7 +8,6 @@ BASE_DIR = Path(__file__).resolve().parent
 DB_FILE = BASE_DIR / "faces_db.npz"
 THRESHOLD = 0.60
 
-# Auto-select GPU only if CUDA is really available
 available_providers = ort.get_available_providers()
 
 if "CUDAExecutionProvider" in available_providers:

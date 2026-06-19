@@ -1,33 +1,6 @@
 """
-COBOT VISION SAFETY MONITOR  -  Mission Control Console
-=======================================================
-A unified, colour-rich PySide6 desktop application for a collaborative-robot
-(cobot) vision safety system. It fuses three subsystems that previously lived in
-separate OpenCV windows (PHASE1-5 + COBOT_VISION_SAFETY_MONITOR.py) into one
-"mission control" console:
-
-    * Live camera  ->  YOLOv8 object detection  +  MediaPipe hand tracking
-    * Hand-proximity safety logic (GREEN "safe" / RED "emergency stop")
-    * Real-time 3D robotic arm (URDF via pyrender) that freezes on a stop event
-
-Layout: gradient header + animated status pill, a left rail of colour-coded
-circular gauges (throughput / proximity / latency), a hero camera feed, the 3D
-arm with status chips, a telemetry strip (live charts + safety timeline) and a
-control dock.
-
-Engineering notes
------------------
-* Heavy CV runs in a QThread (VisionWorker); the 3D arm renders in its own
-  QThread (ArmWorker). Frames cross threads as deep-copied QImages.
-* The 3D arm degrades gracefully to a hand-drawn 2D arm if URDF/OpenGL is
-  unavailable, so the panel is never empty.
-* Heavy ML imports are lazy (inside the worker threads) so the window paints
-  instantly and `--selftest` stays light.
-
-Run:        py COBOT_GUI.py
-Self-test:  QT_QPA_PLATFORM=offscreen py COBOT_GUI.py --selftest
+ SAFETY RATED MONITOR STOP - GRADUATION PROJECT
 """
-
 from __future__ import annotations
 
 import os
@@ -56,9 +29,6 @@ from PySide6.QtWidgets import (
 )
 
 
-# ════════════════════════════════════════════════════════════════════════════
-#  CONFIGURATION
-# ════════════════════════════════════════════════════════════════════════════
 
 CAM_INDEX        = 0
 FRAME_WIDTH      = 640
@@ -66,11 +36,11 @@ FRAME_HEIGHT     = 460
 FLIP_VIEW        = True
 
 YOLO_MODEL_PATH  = "yolov8s.pt"
-YOLO_CONF        = 0.50
+YOLO_CONF        = 0.70
 
 MAX_HANDS        = 2
 HAND_DET_CONF    = 0.60
-HAND_TRACK_CONF  = 0.50
+HAND_TRACK_CONF  = 0.60
 
 AREA_THRESHOLD   = 40_000
 THRESHOLD_MIN    = 4_000
@@ -79,47 +49,35 @@ THRESHOLD_STEP   = 2_000
 
 URDF_PATH = r"C:\Users\original\OneDrive\Desktop\GRAD VISION\urdf1\allsub7\urdf\allsub7.urdf"
 ARM_W, ARM_H     = 760, 560
-ARM_SWEEP_DEG    = 100.0    # max swing per joint: +-100 deg (100 left, 100 right)
-# Per-joint sweep range, in degrees.  Actuated joints (from the URDF) are:
-#   index 0 = m2,  1 = m3,  2 = m4,  3 = m5
-# Edit each (min, max) pair to taste.
+ARM_SWEEP_DEG    = 100.0
 RANGE_JOINTS     = {
-    0: (60.0, 90.0),   # m2
-    1: (60.0, 90.0),   # m3  (link 2)
-    2: (60.0, 90.0),   # m4
-    3: (60.0, 120.0),   # m5  (link 4)
+    0: (60.0, 90.0),
+    1: (60.0, 90.0),
+    2: (60.0, 90.0),
+    3: (60.0, 120.0),
 }
-# joint index -> fixed angle in deg; overrides RANGE_JOINTS for that joint.
-FIXED_JOINTS     = {3: 100.0}   # link 4 held at 100 deg (remove this line to let it sweep)
+FIXED_JOINTS     = {3: 100.0}
 ARM_SPEED        = 0.45
 
-# Face recognition (InsightFace buffalo_l + faces_db.npz)
 FACE_DB_PATH     = r"C:\Users\original\OneDrive\Desktop\GRAD VISION\faces_db.npz"
-FACE_THRESHOLD   = 0.60
-FACE_EVERY_N     = 2          # run the recogniser every Nth frame (perf)
+FACE_THRESHOLD   = 0.50
+FACE_EVERY_N     = 2
 
 SNAPSHOT_DIR     = "snapshots"
+LOG_DIR          = "logs"
 
-# Voice / audio safety alerts (spoken through the laptop speaker)
 VOICE_ALERTS_DEFAULT = True
-RED_ZONE_PHRASE      = "Red zone"   # spoken once on entering the red zone
-BUZZER_FREQ          = 600   # Hz - tone of the repeating red-zone buzzer
-BUZZER_DUR_MS        = 300   # ms - length of each buzz
-BUZZER_GAP_S         = 0.15  # s  - silence between buzzes
+RED_ZONE_PHRASE      = "Red zone"
+BUZZER_FREQ          = 600
+BUZZER_DUR_MS        = 300
+BUZZER_GAP_S         = 0.15
 ESTOP_ON_PHRASE      = "Emergency stop activated."
 ESTOP_OFF_PHRASE     = "Emergency stop released."
 
-# Red-zone alert episode length: the camera flash, the voice and the buzzer all
-# run for this long on entering the red zone, then stop on their own.
 RED_ALERT_SECS       = 5.0
-# Don't greet the same known person again until they've been out of frame for
-# this long (s) - stops brief recognition drop-outs re-triggering the greeting.
 GREET_REENTRY_SECS   = 100000
 
 
-# ════════════════════════════════════════════════════════════════════════════
-#  THEME  -  vibrant palette + Qt stylesheet
-# ════════════════════════════════════════════════════════════════════════════
 
 class C:
     """Central colour palette."""
@@ -145,18 +103,16 @@ class C:
     ORANGE      = "#fb923c"
     TEAL        = "#2dd4bf"
 
-    # semantic aliases
     ACCENT      = BLUE
     SAFE        = GREEN
     DANGER      = RED
     WARN        = AMBER
 
 
-# OpenCV BGR colours used inside the vision pipeline drawing
-BGR_SAFE   = (94, 197, 34)      # green
-BGR_DANGER = (68, 68, 239)      # red
-BGR_WARN   = (11, 158, 245)     # amber
-BGR_CYAN   = (238, 211, 34)     # cyan
+BGR_SAFE   = (94, 197, 34)
+BGR_DANGER = (68, 68, 239)
+BGR_WARN   = (11, 158, 245)
+BGR_CYAN   = (238, 211, 34)
 BGR_WHITE  = (245, 245, 245)
 BGR_DARK   = (20, 16, 12)
 FONT       = cv2.FONT_HERSHEY_SIMPLEX
@@ -248,38 +204,16 @@ def qc(h: str, a: int = 255) -> QColor:
     c = QColor(h); c.setAlpha(a); return c
 
 
-# ════════════════════════════════════════════════════════════════════════════
-#  AUDIO SAFETY ALERTS  -  spoken voice from the laptop speaker
-# ════════════════════════════════════════════════════════════════════════════
 
 class AudioAlerter:
-    """Speaks short safety phrases through the laptop speaker.
-
-    Playback runs on a daemon worker thread so the real-time GUI never blocks.
-    The backend is picked at runtime - the first that works wins:
-
-        1. pyttsx3        - in-process offline TTS (SAPI5 voice on Windows)
-        2. Windows SAPI   - via PowerShell, needs no extra Python package
-        3. winsound/bell  - last-resort two-tone alarm if no TTS is available
-
-    Calls collapse: a newer phrase replaces any still-queued one, so alerts can
-    never pile up behind the live loop.
-
-    The red-zone alert is special: it says a short phrase once, then sounds a
-    repeating buzzer (on its own thread) until `stop_buzzer()` is called.
-    """
 
     def __init__(self):
         self._q = queue.Queue()
         self._thread = None
         self._buzzer_stop = threading.Event()
         self._buzzer_thread = None
-        # When a high-priority phrase (emergency stop / red zone) is queued or
-        # speaking, low-priority phrases (greetings) are dropped so the safety
-        # alert always wins if the two clash.
         self._lock = threading.Lock()
         self._priority_active = False
-        # Stay silent in headless / self-test runs (no speakers, would block).
         self._enabled = (VOICE_ALERTS_DEFAULT and
                          os.environ.get("QT_QPA_PLATFORM") != "offscreen")
         if importlib.util.find_spec("pyttsx3") is not None:
@@ -354,9 +288,7 @@ class AudioAlerter:
         if self._thread is not None:
             self._q.put(None)
 
-    # -- internals ----------------------------------------------------------
     def _red_zone_loop(self, duration_s=RED_ALERT_SECS):
-        # Speak the phrase once, then buzz until the deadline (or an early stop).
         deadline = time.monotonic() + max(0.5, float(duration_s))
         try:
             self._speak(RED_ZONE_PHRASE)
@@ -365,7 +297,6 @@ class AudioAlerter:
         while not self._buzzer_stop.is_set() and time.monotonic() < deadline:
             self._buzz_once()
             self._buzzer_stop.wait(BUZZER_GAP_S)
-        # The episode finished on its own - drop our handle so state stays clean.
         if self._buzzer_thread is threading.current_thread():
             self._buzzer_thread = None
 
@@ -397,8 +328,6 @@ class AudioAlerter:
                 pass
             if priority:
                 with self._lock:
-                    # Release the lock only once nothing else is waiting, so a
-                    # burst of safety phrases keeps greetings out until it ends.
                     if self._q.empty():
                         self._priority_active = False
 
@@ -420,7 +349,6 @@ class AudioAlerter:
                     pass
                 return
             except Exception:
-                # Demote to the platform backend and fall through.
                 self._backend = "sapi" if sys.platform.startswith("win") else "beep"
 
         if self._backend == "sapi":
@@ -441,7 +369,6 @@ class AudioAlerter:
             except Exception:
                 self._backend = "beep"
 
-        # Last resort: an attention-grabbing two-tone alarm.
         try:
             import winsound
             winsound.Beep(920, 220)
@@ -453,9 +380,6 @@ class AudioAlerter:
                 pass
 
 
-# ════════════════════════════════════════════════════════════════════════════
-#  VISION PIPELINE  -  pure computer vision, no Qt   (verified core)
-# ════════════════════════════════════════════════════════════════════════════
 
 @dataclass
 class FrameResult:
@@ -488,12 +412,7 @@ def _label(frame, text, x, y, bg, fg=BGR_WHITE, scale=0.5):
 
 
 class FaceRecognizer:
-    """InsightFace (buffalo_l) recogniser backed by faces_db.npz.
 
-    Built lazily inside the worker thread. If insightface, the ONNX model or
-    the database are unavailable it disables itself (``available == False``) so
-    the rest of the vision pipeline keeps running - mirrors the 3D-arm fallback.
-    """
 
     def __init__(self, db_path, threshold, device):
         self.available = False
@@ -507,7 +426,6 @@ class FaceRecognizer:
             data = np.load(db_path, allow_pickle=False)
             self.names = data["names"]
             emb = data["embeddings"].astype(np.float32)
-            # pre-normalise DB embeddings so recognition is a single matmul
             self._db = emb / (np.linalg.norm(emb, axis=1, keepdims=True) + 1e-9)
 
             avail = ort.get_available_providers()
@@ -549,7 +467,7 @@ def _draw_faces(frame, faces):
 
 
 class VisionPipeline:
-    """Owns the YOLO + MediaPipe models. Construct inside the worker thread."""
+
 
     def __init__(self, model_path: str, device: str):
         from ultralytics import YOLO
@@ -618,7 +536,6 @@ class VisionPipeline:
                 if hot:
                     state = "RED"
 
-        # ---- face recognition (throttled; last result re-drawn between runs) --
         self._frame_i += 1
         if recognize_faces and self.face.available:
             if self._frame_i % FACE_EVERY_N == 0:
@@ -642,12 +559,9 @@ class VisionPipeline:
             pass
 
 
-# ════════════════════════════════════════════════════════════════════════════
-#  3D ROBOTIC ARM  (URDF via pyrender)  +  2D fallback   (verified core)
-# ════════════════════════════════════════════════════════════════════════════
 
 class RobotArm3D:
-    """Loads a SolidWorks-exported URDF and renders it as a live 3D arm."""
+
 
     def __init__(self, urdf_path, width, height):
         import yourdfpy
@@ -656,10 +570,6 @@ class RobotArm3D:
         self.width, self.height = width, height
         self.robot = yourdfpy.URDF.load(urdf_path)
         self.joint_names = list(self.robot.actuated_joint_names)
-        # Per-joint safe sweep: stay inside each joint's real URDF limits so the
-        # links never coil through each other ("arm moving into itself"). We sweep
-        # around the mid-point of each joint, using only a fraction of its range.
-        # Hard cap on how far any joint may swing: +-100 deg (100 left, 100 right).
         max_swing = math.radians(ARM_SWEEP_DEG)
         self._joint_motion = []
         for idx, n in enumerate(self.joint_names):
@@ -670,28 +580,23 @@ class RobotArm3D:
             if lo is not None and hi is not None and hi > lo:
                 center = 0.5 * (lo + hi)
                 half = 0.5 * (hi - lo)
-            else:  # continuous / unlimited joint -> would spin 360, so clamp it
+            else:
                 center = 0.0
                 half = max_swing
-            # never let a joint swing more than +-100 deg from its centre
             half = min(half, max_swing)
-            # explicit min/max sweep range overrides the limit-based motion
             if idx in RANGE_JOINTS:
                 lo_d, hi_d = RANGE_JOINTS[idx]
                 center = math.radians(0.5 * (lo_d + hi_d))
                 half = math.radians(0.5 * (hi_d - lo_d))
-            # held-fixed joints stay at a set angle (zero swing)
             if idx in FIXED_JOINTS:
                 center = math.radians(FIXED_JOINTS[idx])
                 half = 0.0
             self._joint_motion.append((center, half))
-        # Frame the camera around the FULL range of motion (not just the rest
-        # pose) so the arm stays centred and never sweeps out of view.
         centers = [c for c, h in self._joint_motion]
         mins    = [c - h for c, h in self._joint_motion]
         maxs    = [c + h for c, h in self._joint_motion]
         sample_cfgs = [centers, mins, maxs]
-        for i in range(len(self.joint_names)):       # each joint at its extremes
+        for i in range(len(self.joint_names)):
             for val in (mins[i], maxs[i]):
                 cfg = list(centers); cfg[i] = val
                 sample_cfgs.append(cfg)
@@ -703,7 +608,6 @@ class RobotArm3D:
         self._center = 0.5 * (lo_b + hi_b)
         self._radius = max(float(np.linalg.norm(hi_b - lo_b)), 1e-3)
         self.renderer = pyrender.OffscreenRenderer(width, height)
-        # One distinct vibrant colour per link, spread evenly around the hue wheel.
         import colorsys
         self._link_names = list(self.robot.scene.graph.nodes_geometry)
         n_links = max(len(self._link_names), 1)
@@ -726,8 +630,6 @@ class RobotArm3D:
 
     def render(self, phase, stopped):
         pyrender = self._pyrender
-        # Swing each joint up to its capped half-range (+-100 deg), staggering the
-        # phase per joint for a natural sweep.
         cfg = {}
         for i, n in enumerate(self.joint_names):
             center, half = self._joint_motion[i]
@@ -805,9 +707,6 @@ def _overlay_estop(canvas):
     return canvas
 
 
-# ════════════════════════════════════════════════════════════════════════════
-#  WORKER THREADS   (verified core)
-# ════════════════════════════════════════════════════════════════════════════
 
 def bgr_to_qimage(frame_bgr) -> QImage:
     """OpenCV BGR -> deep-copied QImage (safe cross-thread handoff)."""
@@ -902,7 +801,7 @@ class VisionWorker(QThread):
 class ArmWorker(QThread):
     armReady = Signal(QImage)
     mode     = Signal(str)
-    legend   = Signal(list)        # [(link_name, '#rrggbb'), ...]
+    legend   = Signal(list)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -943,16 +842,9 @@ class ArmWorker(QThread):
             arm.close()
 
 
-# ════════════════════════════════════════════════════════════════════════════
-#  CUSTOM WIDGETS
-# ════════════════════════════════════════════════════════════════════════════
 
 class VideoView(QWidget):
-    """Aspect-preserving image surface with a rounded frame + placeholder.
 
-    Right-clicking the surface emits `rightClicked` (used as a manual emergency
-    stop); when latched it paints a red alert border + banner over the feed.
-    """
 
     rightClicked = Signal()
 
@@ -1042,7 +934,7 @@ class VideoView(QWidget):
 
 
 class StatusPill(QWidget):
-    """Big animated SAFE / STOP indicator with a pulsing halo."""
+
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1078,7 +970,7 @@ class StatusPill(QWidget):
 
 
 class RingGauge(QFrame):
-    """Colour-coded circular gauge: title on top, big value in the ring."""
+
 
     def __init__(self, title, unit="", color=C.BLUE, vmax=100.0,
                  dynamic=False, parent=None):
@@ -1124,7 +1016,7 @@ class RingGauge(QFrame):
 
 
 class StatChip(QFrame):
-    """Small tinted pill: a coloured dot, a LABEL and a value."""
+
 
     def __init__(self, label, color=C.BLUE, parent=None):
         super().__init__(parent)
@@ -1154,19 +1046,17 @@ class StatChip(QFrame):
 
 
 class LinkLegend(QWidget):
-    """Colour key for the 3D arm, painted directly: a big swatch + link name per
-    link, flowing left-to-right and wrapping to new rows as needed."""
 
-    SW   = 22          # swatch size
+
+    SW   = 22
     PADX = 12
     PADY = 6
-    GAPX = 22          # gap between entries
-    ROWH = 30          # row height
+    GAPX = 22
+    ROWH = 30
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._entries = []
-        # vertical size is Fixed -> no blank space; height tracks the row count
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._apply_height(1)
 
@@ -1220,7 +1110,7 @@ class LinkLegend(QWidget):
 
 
 class Sparkline(QFrame):
-    """Live time-series sparkline drawn with QPainter."""
+
 
     def __init__(self, title="FPS", color=C.BLUE, maxlen=120, parent=None):
         super().__init__(parent)
@@ -1258,7 +1148,6 @@ class Sparkline(QFrame):
 
 
 class SafetyTimeline(QFrame):
-    """Horizontal strip of recent GREEN/RED states."""
 
     def __init__(self, maxlen=200, parent=None):
         super().__init__(parent)
@@ -1285,7 +1174,7 @@ class SafetyTimeline(QFrame):
 
 
 class LogoBadge(QWidget):
-    """A painted 'vision' emblem (cyan ring + white pupil) - no glyph fonts."""
+
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1301,7 +1190,7 @@ class LogoBadge(QWidget):
 
 
 def titled_card(title, body, color=C.TEXT):
-    """Rounded card with a coloured title bar over a body widget."""
+
     f = QFrame(); f.setObjectName("card")
     lay = QVBoxLayout(f); lay.setContentsMargins(12, 10, 12, 12); lay.setSpacing(8)
     t = QLabel(title); t.setObjectName("panelTitle"); t.setStyleSheet(f"color:{color};")
@@ -1310,9 +1199,6 @@ def titled_card(title, body, color=C.TEXT):
     return f
 
 
-# ════════════════════════════════════════════════════════════════════════════
-#  MAIN WINDOW  -  mission control layout
-# ════════════════════════════════════════════════════════════════════════════
 
 class MainWindow(QMainWindow):
 
@@ -1326,9 +1212,13 @@ class MainWindow(QMainWindow):
         self.arm = ArmWorker(self)
         self.audio = AudioAlerter()
         self._t_start = None
-        self._estop = False            # manual emergency-stop latch (right-click)
-        self._was_red = False          # red-zone edge tracker for voice alerts
-        self._last_seen = {}           # known-name -> last-seen time (for greetings)
+        self._estop = False
+        self._was_red = False
+        self._last_seen = {}
+        self._log_file = None
+        self._log_path = None
+        self._last_safe = None
+        self._last_collision = False
 
         self._build_ui()
         self._connect_workers()
@@ -1337,7 +1227,6 @@ class MainWindow(QMainWindow):
         self._clock = QTimer(self); self._clock.timeout.connect(self._update_clock)
         self._clock.start(1000)
 
-    # ------------------------------------------------------------------ UI ---
     def _build_ui(self):
         root = QWidget(); root.setObjectName("root"); self.setCentralWidget(root)
         outer = QVBoxLayout(root)
@@ -1435,7 +1324,6 @@ class MainWindow(QMainWindow):
         lay.addWidget(self.btn_start)
 
         sliders = QVBoxLayout(); sliders.setSpacing(8)
-        # YOLO confidence is hidden from the UI (kept internal at the default value)
         self.sld_conf, conf_box = self._slider_row(
             "YOLO CONFIDENCE", int(YOLO_CONF * 100), 10, 90, self._on_conf)
         conf_box.setVisible(False)
@@ -1476,7 +1364,6 @@ class MainWindow(QMainWindow):
         lay.addWidget(self.log)
         return dock
 
-    # --------------------------------------------------------- UI helpers ---
     def _slider_row(self, name, val, lo, hi, cb, step=1, is_area=False):
         box = QWidget(); v = QVBoxLayout(box)
         v.setContentsMargins(0, 0, 0, 0); v.setSpacing(3)
@@ -1513,13 +1400,11 @@ class MainWindow(QMainWindow):
         self.arm.armReady.connect(self._on_arm)
         self.arm.mode.connect(self._on_arm_mode)
         self.arm.legend.connect(self.link_legend.set_entries)
-        # Right-click either feed = manual emergency stop.
         self.view_cam.rightClicked.connect(self._toggle_estop)
         self.view_arm.rightClicked.connect(self._toggle_estop)
         tip = "Right-click to toggle EMERGENCY STOP"
         self.view_cam.setToolTip(tip); self.view_arm.setToolTip(tip)
 
-    # --------------------------------------------------------- callbacks ---
     def toggle_monitor(self):
         self._stop_monitor() if self.vision.isRunning() else self._start_monitor()
 
@@ -1529,6 +1414,9 @@ class MainWindow(QMainWindow):
 
     def _start_monitor(self):
         self._t_start = time.time()
+        self._last_safe = None
+        self._last_collision = False
+        self._open_session_log()
         self.btn_start.setText("STOP"); self._restyle(self.btn_start, "danger")
         self.btn_snapshot.setEnabled(True)
         self.view_cam.set_placeholder("INITIALISING  •  loading YOLOv8 + MediaPipe ...")
@@ -1555,14 +1443,27 @@ class MainWindow(QMainWindow):
         self.pill.set_safe(True)
         self.chip_state.set("--", C.GREEN)
         self.chip_face.set("--", C.MUTED)
+        self._close_session_log()
 
     def _on_frame(self, img, r: FrameResult):
         self.view_cam.set_image(img)
         self._maybe_voice(r)
         self._maybe_greet(r)
-        # The manual emergency-stop latch overrides the proximity state.
         safe = (r.state == "GREEN") and not self._estop
         self.pill.set_safe(safe); self.arm.set_stopped(not safe)
+
+        if safe != self._last_safe:
+            if self._last_safe is not None:
+                if safe:
+                    self._log("SAFETY  ->  SAFE (green zone, arm resumed)")
+                elif self._estop:
+                    self._log("SAFETY  ->  EMERGENCY STOP (manual latch)")
+                else:
+                    self._log("SAFETY  ->  STOP (red zone - hand too close, arm frozen)")
+            self._last_safe = safe
+        if r.collision and not self._last_collision:
+            self._log(f"SAFETY  ->  COLLISION RISK ({r.objects} object(s) near a stopped arm)")
+        self._last_collision = r.collision
 
         self.g_fps.set_value(r.fps)
         self.g_lat.set_value(r.infer_ms)
@@ -1607,7 +1508,6 @@ class MainWindow(QMainWindow):
         self.vision.set_objects(on)
         self._log(f"Object detection {'enabled' if on else 'disabled'}")
 
-    # ---------------------------------------------- safety alerts / e-stop ---
     def _maybe_voice(self, r: FrameResult):
         """On *entering* the red zone, fire a fixed-length alert: flash the camera
         feed red and sound the voice + buzzer, both for RED_ALERT_SECS, then they
@@ -1635,8 +1535,6 @@ class MainWindow(QMainWindow):
                 entered.append(name)
             self._last_seen[name] = now
         if entered:
-            # One "Hello <name>" per newly-seen person, spoken as a single phrase
-            # so none get dropped from the (collapsing) audio queue.
             self.audio.say(". ".join(f"Hello {name}" for name in entered))
             self._log("Greeted: " + ", ".join(entered))
 
@@ -1687,21 +1585,52 @@ class MainWindow(QMainWindow):
         else:
             self.lbl_uptime.setText("IDLE")
 
+    def _open_session_log(self):
+        self._close_session_log()
+        try:
+            os.makedirs(LOG_DIR, exist_ok=True)
+            stamp = time.strftime("%Y%m%d_%H%M%S")
+            self._log_path = os.path.join(LOG_DIR, f"session_{stamp}.log")
+            self._log_file = open(self._log_path, "a", encoding="utf-8")
+            self._log_file.write(
+                f"===== SESSION START  {time.strftime('%Y-%m-%d %H:%M:%S')} =====\n")
+            self._log_file.flush()
+        except Exception:
+            self._log_file = None
+        if self._log_file is not None:
+            self._log(f"Session log -> {self._log_path}")
+
+    def _close_session_log(self):
+        if self._log_file is not None:
+            try:
+                el = int(time.time() - self._t_start) if self._t_start else 0
+                self._log_file.write(
+                    f"===== SESSION END    {time.strftime('%Y-%m-%d %H:%M:%S')}"
+                    f"  (duration {el//60:02d}:{el%60:02d}) =====\n\n")
+                self._log_file.flush(); self._log_file.close()
+            except Exception:
+                pass
+            self._log_file = None
+
     def _log(self, msg):
-        self.log.appendPlainText(f"[{time.strftime('%H:%M:%S')}] {msg}")
+        line = f"[{time.strftime('%H:%M:%S')}] {msg}"
+        self.log.appendPlainText(line)
+        if self._log_file is not None:
+            try:
+                self._log_file.write(line + "\n"); self._log_file.flush()
+            except Exception:
+                pass
 
     def closeEvent(self, e):
         try:
             self.audio.shutdown()
             self.vision.stop(); self.vision.wait(2000)
             self.arm.stop(); self.arm.wait(2000)
+            self._close_session_log()
         finally:
             e.accept()
 
 
-# ════════════════════════════════════════════════════════════════════════════
-#  ENTRY POINT
-# ════════════════════════════════════════════════════════════════════════════
 
 def _apply_app_style(app):
     app.setStyleSheet(build_stylesheet())
@@ -1713,7 +1642,7 @@ def selftest():
     app = QApplication.instance() or QApplication(sys.argv)
     _apply_app_style(app)
     win = MainWindow(); win.show()
-    win.audio.set_enabled(False)   # never speak during the headless self-test
+    win.audio.set_enabled(False)
 
     dummy = np.zeros((FRAME_HEIGHT, FRAME_WIDTH, 3), np.uint8); dummy[:] = (40, 30, 25)
     cv2.putText(dummy, "SELFTEST", (60, 240), FONT, 2.0, (200, 200, 200), 3)
@@ -1726,8 +1655,8 @@ def selftest():
         win._on_frame(qimg, r)
     win._on_arm(bgr_to_qimage(render_arm_2d(1.0, False)))
     win._on_arm_mode("3D URDF")
-    win._toggle_estop(); win._on_frame(qimg, r)   # engage E-STOP, repaint feed
-    win._toggle_estop()                            # release E-STOP
+    win._toggle_estop(); win._on_frame(qimg, r)
+    win._toggle_estop()
     win.take_snapshot()
     print("[selftest] UI constructed + updated OK; widgets:",
           len(win.findChildren(QWidget)))

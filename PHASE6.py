@@ -189,8 +189,7 @@ class RobotArm3D:
         self.robot = yourdfpy.URDF.load(urdf_path)
         self.joint_names = list(self.robot.actuated_joint_names)
 
-        # Camera framed on the model from its overall size.
-        bounds = self.robot.scene.bounds          # (2, 3) min/max corners
+        bounds = self.robot.scene.bounds
         center = bounds.mean(axis=0)
         size = float(np.linalg.norm(bounds[1] - bounds[0]))
         self._center = center
@@ -198,13 +197,8 @@ class RobotArm3D:
 
         self.renderer = pyrender.OffscreenRenderer(width, height)
 
-        # ---- Per-link colour table -------------------------------------
-        # Colours live in the URDF (<material><color>); we read the colour
-        # that actually got loaded back from each mesh, so the legend swatch
-        # always matches what is drawn. Mesh nodes are named "<link>.STL" and
-        # every link is the child of exactly one joint (base_link has none).
         child_to_joint = {j.child: j.name for j in self.robot.robot.joints}
-        self._legend = []  # list of (label, (B, G, R)) ordered base -> tip
+        self._legend = []
         scene = self.robot.scene
         for node_name in scene.graph.nodes_geometry:
             _, geom_name = scene.graph.get(node_name)
@@ -215,7 +209,6 @@ class RobotArm3D:
             self._legend.append((f"{joint or 'base'} : {link.strip()}", bgr))
 
     def _camera_pose(self):
-        # Look at the model from an isometric-ish angle.
         d = self._radius * 1.1
         eye = self._center + np.array([d * 0.8, -d * 0.9, d * 0.7])
         forward = self._center - eye
@@ -275,7 +268,7 @@ class RobotArm3D:
     def _draw_legend(self, canvas, top):
         """Draw the per-link colour legend in the top-left corner."""
         x, y = 10, top
-        sw = 14  # swatch size
+        sw = 14
         for label, bgr in self._legend:
             cv2.rectangle(canvas, (x, y), (x + sw, y + sw), bgr, -1)
             cv2.rectangle(canvas, (x, y), (x + sw, y + sw), COLOR_BLACK, 1)
@@ -338,7 +331,6 @@ def compose_dashboard(cam_frame, arm_canvas, state, fps, threshold,
     safe = state == "GREEN"
     accent = COLOR_GREEN if safe else COLOR_RED
 
-    # ---- header ----
     cv2.rectangle(dash, (0, 0), (W, HEADER_H), PANEL_BG, -1)
     cv2.rectangle(dash, (0, HEADER_H - 3), (W, HEADER_H), accent, -1)
     _put(dash, "CSafety Rated Monitor Stop", (PAD, 43), 1.0, COLOR_WHITE, 2)
@@ -350,14 +342,12 @@ def compose_dashboard(cam_frame, arm_canvas, state, fps, threshold,
     cv2.circle(dash, (px1 + 20, 33), 8, COLOR_WHITE, -1)
     _put(dash, label, (px1 + 46, 50), 0.7, COLOR_WHITE, 2)
 
-    # ---- panels ----
     y0 = HEADER_H + PAD - TITLE_H + 4
     _place_panel(dash, cam_frame, PAD, HEADER_H + 6, pw, ph,
                  "LIVE CAMERA  -  YOLO + HAND TRACKING")
     _place_panel(dash, arm_canvas, PAD + pw + PAD, HEADER_H + 6, aw, ah,
                  "ROBOTIC ARM  -  3D URDF MODEL")
 
-    # ---- footer ----
     fy = H - FOOTER_H
     cv2.rectangle(dash, (0, fy), (W, H), PANEL_BG, -1)
     _put(dash, f"FPS: {fps:4.1f}", (PAD, fy + 38), 0.6, COLOR_WHITE, 1)
@@ -366,7 +356,6 @@ def compose_dashboard(cam_frame, arm_canvas, state, fps, threshold,
     _put(dash, f"Arm: {'STOPPED' if not safe else 'MOVING'}",
          (PAD + 400, fy + 38), 0.6, accent, 2)
 
-    # horizontal sensitivity gauge
     gx1, gx2, gy = PAD + 580, PAD + 860, fy + 32
     _put(dash, f"Sensitivity threshold: {threshold}", (gx1, gy - 13), 0.45,
          COLOR_WHITE, 1)
@@ -394,13 +383,12 @@ last_state = None
 threshold = HAND_AREA_THRESHOLD
 arm_phase = 0.0
 
-# Load the 3D URDF arm once. If it fails, fall back to a message canvas.
 arm_view = None
 arm_error = ""
 try:
 	arm_view = RobotArm3D(URDF_PATH, ARM_CANVAS_W, ARM_CANVAS_H)
 	print(f"Loaded URDF arm with joints: {arm_view.joint_names}")
-except Exception as exc:  # missing URDF, missing libs, GL context, etc.
+except Exception as exc:
 	arm_error = f"{type(exc).__name__}: {exc}\nCheck URDF_PATH and that\nyourdfpy + pyrender are installed."
 	print("Could not load 3D arm:", arm_error)
 
@@ -412,7 +400,6 @@ while True:
 	if FLIP_VIEW:
 		frame = cv2.flip(frame, 1)
 
-	# YOLO detection
 	yolo_kwargs = {
 		"conf": YOLO_CONF_THRESHOLD,
 		"verbose": False,
@@ -438,7 +425,6 @@ while True:
 			draw_label(frame, label, x1, y1, COLOR_BLACK)
 			objects_detected = True
 
-	# MediaPipe Hands detection
 	rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 	rgb_frame.flags.writeable = False
 	hand_results = hands.process(rgb_frame)
@@ -471,7 +457,6 @@ while True:
 
 	collision_risk = safety_state == "RED" and objects_detected
 
-	# Decision output
 	if safety_state != last_state:
 		if safety_state == "RED":
 			print("ROBOT STOP - HUMAN TOO CLOSE")
@@ -483,7 +468,6 @@ while True:
 	fps = 1.0 / max(1e-6, now - prev_time)
 	prev_time = now
 
-	# Robotic arm: keep moving until the hand reaches the red zone.
 	arm_stopped = safety_state == "RED"
 	if not arm_stopped:
 		arm_phase += ARM_SPEED
@@ -492,18 +476,10 @@ while True:
 	else:
 		arm_canvas = render_arm_placeholder(arm_stopped, arm_error)
 
-	# Compose everything into one professional dashboard window.
 	dashboard = compose_dashboard(frame, arm_canvas, safety_state, fps,
 	                              threshold, collision_risk, num_hands)
 	cv2.imshow(WINDOW_NAME, dashboard)
 
-	# waitKeyEx returns the full keycode - arrow keys work on all OSes.
-	# waitKey(1) & 0xFF only keeps the low byte, breaking arrow keys.
-	#
-	# Keycodes:  Windows   Linux    macOS
-	#   Up       2490368   65362    63232
-	#   Down     2621440   65364    63233
-	# +/- keys work as a fallback on every platform.
 	key = cv2.waitKeyEx(1)
 
 	if key == ord("q"):

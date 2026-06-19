@@ -11,9 +11,6 @@ import mediapipe as mp
 
 
 
-# =========================
-# Configuration constants
-# =========================
 CAM_INDEX = 0
 FRAME_WIDTH = 640
 FRAME_HEIGHT = 460
@@ -23,7 +20,7 @@ WINDOW_NAME = "Cobot Vision Safety Monitor"
 
 YOLO_MODEL_PATH = "yolov8s.pt"
 YOLO_CONF_THRESHOLD = 0.5
-YOLO_DEVICE = "cuda"  # Use None for auto, or "cpu" / "0" for GPU index
+YOLO_DEVICE = "cuda"
 
 MAX_HANDS = 2
 MODEL_COMPLEXITY = 0
@@ -34,14 +31,13 @@ HAND_AREA_THRESHOLD = 40_000
 THRESHOLD_STEP    = 2_000
 THRESHOLD_MAX     = 150_000
 
-# Robotic arm visualization (second window)
 ARM_WINDOW_NAME = "Robotic Arm"
 ARM_CANVAS_W = 640
 ARM_CANVAS_H = 460
 ARM_BASE = (ARM_CANVAS_W // 2, ARM_CANVAS_H - 60)
-ARM_L1 = 150          # length of first link (px)
-ARM_L2 = 120          # length of second link (px)
-ARM_SPEED = 0.04      # animation speed (radians per frame)
+ARM_L1 = 150
+ARM_L2 = 120
+ARM_SPEED = 0.04
 
 COLOR_GREEN = (0, 200, 0)
 COLOR_RED = (0, 0, 255)
@@ -186,7 +182,6 @@ def render_arm(phase: float, stopped: bool):
     """
     canvas = np.full((ARM_CANVAS_H, ARM_CANVAS_W, 3), 40, dtype=np.uint8)
 
-    # Red target zone (top-right) the arm reaches toward.
     zone_tl = (ARM_CANVAS_W - 170, 40)
     zone_br = (ARM_CANVAS_W - 40, 170)
     zone_color = COLOR_RED if stopped else (40, 40, 120)
@@ -195,8 +190,7 @@ def render_arm(phase: float, stopped: bool):
     cv2.putText(canvas, "RED ZONE", (zone_tl[0] - 4, zone_tl[1] - 8),
                 FONT, 0.5, COLOR_RED, 2, cv2.LINE_AA)
 
-    # Joint angles oscillate so the arm continuously moves while safe.
-    base_angle = -math.pi / 2          # point upward
+    base_angle = -math.pi / 2
     a1 = base_angle + 0.6 * math.sin(phase)
     a2 = -0.8 + 0.7 * math.sin(phase * 1.3)
 
@@ -208,15 +202,10 @@ def render_arm(phase: float, stopped: bool):
 
     arm_color = COLOR_RED if stopped else COLOR_GREEN
 
-    # Base
     cv2.circle(canvas, (bx, by), 14, COLOR_WHITE, -1)
-    # Link 1
     cv2.line(canvas, (bx, by), (jx, jy), arm_color, 10)
-    # Joint
     cv2.circle(canvas, (jx, jy), 9, COLOR_WHITE, -1)
-    # Link 2
     cv2.line(canvas, (jx, jy), (ex, ey), arm_color, 8)
-    # End effector / hand
     cv2.circle(canvas, (ex, ey), 11, COLOR_YELLOW, -1)
     cv2.circle(canvas, (ex, ey), 11, arm_color, 2)
 
@@ -246,7 +235,6 @@ while True:
 	if FLIP_VIEW:
 		frame = cv2.flip(frame, 1)
 
-	# YOLO detection
 	yolo_kwargs = {
 		"conf": YOLO_CONF_THRESHOLD,
 		"verbose": False,
@@ -272,7 +260,6 @@ while True:
 			draw_label(frame, label, x1, y1, COLOR_BLACK)
 			objects_detected = True
 
-	# MediaPipe Hands detection
 	rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 	rgb_frame.flags.writeable = False
 	hand_results = hands.process(rgb_frame)
@@ -304,7 +291,6 @@ while True:
 
 	collision_risk = safety_state == "RED" and objects_detected
 
-	# Decision output
 	if safety_state != last_state:
 		if safety_state == "RED":
 			print("ROBOT STOP - HUMAN TOO CLOSE")
@@ -321,7 +307,6 @@ while True:
 
 	cv2.imshow(WINDOW_NAME, frame)
 
-	# Robotic arm window: keep moving until the hand reaches the red zone.
 	arm_stopped = safety_state == "RED"
 	if not arm_stopped:
 		arm_phase += ARM_SPEED

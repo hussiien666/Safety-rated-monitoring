@@ -57,27 +57,18 @@ import time
 from typing import Optional
 
 
-# ----------------------------------------------------------------------------
-# Configuration  (mirrors the matching knobs in COBOT_GUI.py)
-# ----------------------------------------------------------------------------
 VOICE_ALERTS_DEFAULT = True
-RED_ZONE_PHRASE      = "Red zone"          # spoken once on entering the red zone
-BUZZER_FREQ          = 600                  # Hz  - tone of the repeating buzzer
-BUZZER_DUR_MS        = 300                  # ms  - length of each buzz
-BUZZER_GAP_S         = 0.15                 # s   - silence between buzzes
+RED_ZONE_PHRASE      = "Red zone"
+BUZZER_FREQ          = 600
+BUZZER_DUR_MS        = 300
+BUZZER_GAP_S         = 0.15
 ESTOP_ON_PHRASE      = "Emergency stop activated."
 ESTOP_OFF_PHRASE     = "Emergency stop released."
 
-# Red-zone alert episode length: the voice + buzzer run for this long, then stop.
 RED_ALERT_SECS       = 5.0
-# Don't greet the same known person again until they've been out of frame for
-# this long (s) - stops brief recognition drop-outs re-triggering the greeting.
 GREET_REENTRY_SECS   = 8.0
 
 
-# ----------------------------------------------------------------------------
-# Core 1: the audio engine  (verbatim mirror of COBOT_GUI.AudioAlerter)
-# ----------------------------------------------------------------------------
 class AudioAlerter:
     """Speaks short safety phrases through the laptop speaker.
 
@@ -97,12 +88,8 @@ class AudioAlerter:
         self._thread: Optional[threading.Thread] = None
         self._buzzer_stop = threading.Event()
         self._buzzer_thread: Optional[threading.Thread] = None
-        # When a high-priority phrase (emergency stop / red zone) is queued or
-        # speaking, low-priority phrases (greetings) are dropped so the safety
-        # alert always wins if the two clash.
         self._lock = threading.Lock()
         self._priority_active = False
-        # Stay silent in headless / self-test runs (no speakers, would block).
         self._enabled = (VOICE_ALERTS_DEFAULT and
                          os.environ.get("QT_QPA_PLATFORM") != "offscreen")
         if importlib.util.find_spec("pyttsx3") is not None:
@@ -177,9 +164,7 @@ class AudioAlerter:
         if self._thread is not None:
             self._q.put(None)
 
-    # -- internals ----------------------------------------------------------
     def _red_zone_loop(self, duration_s=RED_ALERT_SECS):
-        # Speak the phrase once, then buzz until the deadline (or an early stop).
         deadline = time.monotonic() + max(0.5, float(duration_s))
         try:
             self._speak(RED_ZONE_PHRASE)
@@ -188,7 +173,6 @@ class AudioAlerter:
         while not self._buzzer_stop.is_set() and time.monotonic() < deadline:
             self._buzz_once()
             self._buzzer_stop.wait(BUZZER_GAP_S)
-        # The episode finished on its own - drop our handle so state stays clean.
         if self._buzzer_thread is threading.current_thread():
             self._buzzer_thread = None
 
@@ -220,8 +204,6 @@ class AudioAlerter:
                 pass
             if priority:
                 with self._lock:
-                    # Release the lock only once nothing else is waiting, so a
-                    # burst of safety phrases keeps greetings out until it ends.
                     if self._q.empty():
                         self._priority_active = False
 
@@ -243,7 +225,6 @@ class AudioAlerter:
                     pass
                 return
             except Exception:
-                # Demote to the platform backend and fall through.
                 self._backend = "sapi" if sys.platform.startswith("win") else "beep"
 
         if self._backend == "sapi":
@@ -264,7 +245,6 @@ class AudioAlerter:
             except Exception:
                 self._backend = "beep"
 
-        # Last resort: an attention-grabbing two-tone alarm.
         try:
             import winsound
             winsound.Beep(920, 220)
@@ -276,9 +256,6 @@ class AudioAlerter:
                 pass
 
 
-# ----------------------------------------------------------------------------
-# Core 2: the event -> voice policy  (the part the GUI reuses)
-# ----------------------------------------------------------------------------
 class VoiceAlertSystem:
     """Turns high-level safety events into spoken audio, applying the same
     greeting and priority rules as COBOT_GUI.
@@ -301,7 +278,7 @@ class VoiceAlertSystem:
         self._log = log or (lambda m: None)
         self._was_red = False
         self._estop = False
-        self._last_seen: dict = {}     # known-name -> last-seen monotonic time
+        self._last_seen: dict = {}
 
     def reset(self):
         """Forget transient state (call on START, like the GUI does)."""
@@ -310,7 +287,6 @@ class VoiceAlertSystem:
         self._last_seen.clear()
         self.audio.stop_buzzer()
 
-    # ---- events -----------------------------------------------------------
     def on_faces(self, names):
         """Greet newly-appeared known people. Suppressed while the emergency
         stop or the red-zone alert is active so the safety alert is never talked
@@ -326,8 +302,6 @@ class VoiceAlertSystem:
                 entered.append(name)
             self._last_seen[name] = now
         if entered:
-            # One "Hello <name>" per newly-seen person, spoken as a single phrase
-            # so none get dropped from the (collapsing) audio queue.
             self.audio.say(". ".join(f"Hello {name}" for name in entered))
             self._log("Greeted: " + ", ".join(entered))
         return entered
@@ -359,9 +333,6 @@ class VoiceAlertSystem:
         self.audio.shutdown()
 
 
-# ----------------------------------------------------------------------------
-# Run mode 1: interactive simulation REPL  (type events, hear the audio)
-# ----------------------------------------------------------------------------
 HELP = """
 Type an event:
     face <name> [<name> ...]   a known person (or several) appears in frame
@@ -423,9 +394,6 @@ def run_sim():
         print("Voice alert system stopped.")
 
 
-# ----------------------------------------------------------------------------
-# Run mode 2: scripted demo  (greet -> red zone -> emergency-stop clash)
-# ----------------------------------------------------------------------------
 def run_demo():
     """A short scripted timeline that exercises greeting, the red-zone alert,
     and the emergency-stop-over-greeting priority - audibly."""
@@ -458,9 +426,6 @@ def run_demo():
     print("\nDemo complete.")
 
 
-# ----------------------------------------------------------------------------
-# Run mode 3: self-test  (logic only - silent, no audio, no blocking)
-# ----------------------------------------------------------------------------
 def run_selftest() -> int:
     failures = 0
 
@@ -470,43 +435,36 @@ def run_selftest() -> int:
         failures += not ok
         print(f"  [{'ok' if ok else 'XX'}] {msg}")
 
-    # Run with audio disabled so nothing speaks or blocks.
     audio = AudioAlerter()
     audio.set_enabled(False)
     vas = VoiceAlertSystem(audio=audio)
 
-    # 1) a known person is greeted once, not twice in quick succession
     check(vas.on_faces(["Hussien"]) == ["Hussien"], "first sighting greets Hussien")
     check(vas.on_faces(["Hussien"]) == [], "immediate re-sighting does NOT re-greet")
 
-    # 2) a second new person is greeted, the first is not greeted again
     check(vas.on_faces(["Hussien", "Mazen"]) == ["Mazen"],
           "new person Mazen greeted, Hussien not re-greeted")
 
-    # 3) re-entry after the cooldown greets again
     vas._last_seen["Hussien"] = time.monotonic() - (GREET_REENTRY_SECS + 1)
     check(vas.on_faces(["Hussien"]) == ["Hussien"],
           "re-greets after GREET_REENTRY_SECS away")
 
-    # 4) emergency stop suppresses greetings (priority over greeting)
     vas.on_estop(True)
     check(vas.on_faces(["Sara"]) == [], "no greeting while emergency stop engaged")
     vas.on_estop(False)
     check(vas.on_faces(["Sara"]) == ["Sara"], "greeting resumes after release")
 
-    # 5) red-zone edge: alert fires only on entering, not while held
     fired = {"n": 0}
     audio.alert_red_zone = lambda *_a, **_k: fired.__setitem__("n", fired["n"] + 1)
     vas.on_red_zone(True)
-    vas.on_red_zone(True)   # still red - must NOT fire again
+    vas.on_red_zone(True)
     vas.on_red_zone(False)
-    vas.on_red_zone(True)   # re-entered - fires again
+    vas.on_red_zone(True)
     check(fired["n"] == 2, "red-zone alert fires once per entry (got %d)" % fired["n"])
 
-    # 6) the priority gate: a queued high-priority phrase blocks a greeting
     a2 = AudioAlerter()
-    a2.set_enabled(True)            # enabled, but we won't let the worker run
-    a2._priority_active = True      # simulate an e-stop phrase in flight
+    a2.set_enabled(True)
+    a2._priority_active = True
     before = a2._q.qsize()
     a2.say("Hello Test", priority=False)
     check(a2._q.qsize() == before, "greeting dropped while a priority phrase is active")
