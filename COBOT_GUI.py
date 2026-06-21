@@ -47,7 +47,7 @@ THRESHOLD_MIN    = 4_000
 THRESHOLD_MAX    = 150_000
 THRESHOLD_STEP   = 2_000
 
-URDF_PATH = r"C:\Users\MMAAF\Safety-rated-monitoring\urdf1\allsub7\urdf\allsub7.urdf"
+URDF_PATH = r"C:\Users\original\OneDrive\Desktop\GRAD VISION\urdf1\allsub7\urdf\allsub7.urdf"
 ARM_W, ARM_H     = 760, 560
 ARM_SWEEP_DEG    = 100.0
 RANGE_JOINTS     = {
@@ -59,7 +59,7 @@ RANGE_JOINTS     = {
 FIXED_JOINTS     = {3: 100.0}
 ARM_SPEED        = 0.45
 
-FACE_DB_PATH     = r"C:\Users\MMAAF\Safety-rated-monitoring-\Models\faces_db.npz"
+FACE_DB_PATH     = r"C:\Users\original\OneDrive\Desktop\GRAD VISION\Models\faces_db.npz"
 FACE_THRESHOLD   = 0.50
 FACE_EVERY_N     = 2
 
@@ -979,7 +979,7 @@ class RingGauge(QFrame):
         self._title = title; self._unit = unit; self._color = color
         self._vmax = max(float(vmax), 1e-6); self._dynamic = dynamic
         self._val = 0.0
-        self.setMinimumSize(150, 132)
+        self.setMinimumSize(182, 158)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
     def set_value(self, v): self._val = float(v); self.update()
@@ -1205,8 +1205,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Safety Rated Monitor Stop")
-        self.resize(1520, 940)
-        self.setMinimumSize(1240, 820)
+        self.resize(1680, 1000)
+        self.setMinimumSize(1320, 860)
 
         self.vision = VisionWorker(self)
         self.arm = ArmWorker(self)
@@ -1235,16 +1235,25 @@ class MainWindow(QMainWindow):
         outer.addWidget(self._build_header())
 
         body = QHBoxLayout(); body.setSpacing(12)
-        body.addWidget(self._build_left_rail(), 0)
         body.addWidget(self._build_center(), 1)
         body.addWidget(self._build_right_rail(), 0)
         outer.addLayout(body, 1)
 
+        # Robot link colour key beside the safety monitor plot. The colour key
+        # gets the larger share so every link name fits on a single row.
+        strip = QHBoxLayout(); strip.setSpacing(12)
         self.link_legend = LinkLegend()
-        self.legend_card = titled_card("ROBOT LINK COLOUR KEY", self.link_legend, C.CYAN)
-        outer.addWidget(self.legend_card, 0)
+        self.legend_card = titled_card("ROBOT LINK COLOUR KEY",
+                                       self.link_legend, C.CYAN)
+        # Keep the swatches snug under the title instead of floating/centred
+        # when the card is stretched to match the Safety Monitor's height.
+        self.legend_card.layout().setAlignment(self.link_legend, Qt.AlignTop)
+        self.timeline = SafetyTimeline()
+        timeline_card = titled_card("SAFETY MONITOR", self.timeline, C.VIOLET)
+        strip.addWidget(self.legend_card, 3)
+        strip.addWidget(timeline_card, 1)
+        outer.addLayout(strip, 0)
 
-        outer.addWidget(self._build_telemetry(), 0)
         outer.addWidget(self._build_control_dock(), 0)
 
     def _build_header(self):
@@ -1264,53 +1273,33 @@ class MainWindow(QMainWindow):
         self.pill = StatusPill(); lay.addWidget(self.pill)
         return h
 
-    def _build_left_rail(self):
-        rail = QWidget(); rail.setFixedWidth(244)
-        lay = QVBoxLayout(rail); lay.setContentsMargins(0, 0, 0, 0); lay.setSpacing(12)
-        lab = QLabel("LIVE TELEMETRY"); lab.setObjectName("section")
-        lay.addWidget(lab)
-        self.g_fps = RingGauge("Throughput", "fps", C.BLUE, vmax=60)
-        self.g_prox = RingGauge("Proximity", "% of limit", C.GREEN, vmax=100, dynamic=True)
-        self.g_lat = RingGauge("Inference", "ms", C.VIOLET, vmax=80)
-        for g in (self.g_fps, self.g_prox, self.g_lat):
-            lay.addWidget(g, 1)
-        return rail
-
     def _build_center(self):
+        col = QWidget()
+        lay = QVBoxLayout(col); lay.setContentsMargins(0, 0, 0, 0); lay.setSpacing(12)
         self.view_cam = VideoView("CAMERA OFFLINE   -   press START")
-        return titled_card("LIVE CAMERA   •   YOLOv8 + HAND TRACKING",
-                           self.view_cam, C.CYAN)
+        cam_card = titled_card("LIVE CAMERA   •   YOLOv8 + HAND TRACKING",
+                               self.view_cam, C.CYAN)
+        lay.addWidget(cam_card, 1)
+        return col
 
     def _build_right_rail(self):
-        rail = QWidget(); rail.setFixedWidth(560)
+        rail = QWidget(); rail.setFixedWidth(480)
         lay = QVBoxLayout(rail); lay.setContentsMargins(0, 0, 0, 0); lay.setSpacing(12)
         self.view_arm = VideoView("ROBOTIC ARM STANDBY")
         self.arm_card = titled_card("ROBOTIC ARM   •   3D URDF MODEL",
                                     self.view_arm, C.VIOLET)
         lay.addWidget(self.arm_card, 1)
 
+        # Single status row, centred/aligned under the 3D viewer.
         chips = QHBoxLayout(); chips.setSpacing(10)
         self.chip_state = StatChip("Arm", C.GREEN)
         self.chip_obj = StatChip("Objects", C.AMBER)
         self.chip_hands = StatChip("Hands", C.CYAN)
-        for c in (self.chip_state, self.chip_obj, self.chip_hands):
+        self.chip_face = StatChip("Identity", C.VIOLET)
+        for c in (self.chip_state, self.chip_obj, self.chip_hands, self.chip_face):
             chips.addWidget(c)
         lay.addLayout(chips, 0)
-
-        self.chip_face = StatChip("Identity", C.VIOLET)
-        lay.addWidget(self.chip_face, 0)
         return rail
-
-    def _build_telemetry(self):
-        strip = QWidget(); strip.setFixedHeight(122)
-        lay = QHBoxLayout(strip); lay.setContentsMargins(0, 0, 0, 0); lay.setSpacing(12)
-        self.spark = Sparkline("THROUGHPUT  (fps)", C.BLUE)
-        self.spark_lat = Sparkline("INFERENCE LATENCY  (ms)", C.VIOLET)
-        self.timeline = SafetyTimeline()
-        lay.addWidget(self.spark, 1)
-        lay.addWidget(self.spark_lat, 1)
-        lay.addWidget(self.timeline, 1)
-        return strip
 
     def _build_control_dock(self):
         dock = QFrame(); dock.setObjectName("dock"); dock.setFixedHeight(116)
@@ -1465,11 +1454,6 @@ class MainWindow(QMainWindow):
             self._log(f"SAFETY  ->  COLLISION RISK ({r.objects} object(s) near a stopped arm)")
         self._last_collision = r.collision
 
-        self.g_fps.set_value(r.fps)
-        self.g_lat.set_value(r.infer_ms)
-        prox = min(999, int(r.max_area / max(self.vision.threshold, 1) * 100))
-        self.g_prox.set_value(prox)
-
         self.chip_state.set("RUN" if safe else ("ESTOP" if self._estop else "HOLD"),
                             C.GREEN if safe else C.RED)
         self.chip_obj.set(f"{r.objects} !" if r.collision else r.objects,
@@ -1482,7 +1466,6 @@ class MainWindow(QMainWindow):
         else:
             self.chip_face.set("--", C.MUTED)
 
-        self.spark.push(r.fps); self.spark_lat.push(r.infer_ms)
         self.timeline.push(safe)
 
     def _on_arm(self, img): self.view_arm.set_image(img)
