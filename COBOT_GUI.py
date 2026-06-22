@@ -32,7 +32,7 @@ from PySide6.QtWidgets import (
 
 CAM_INDEX        = 0
 FRAME_WIDTH      = 640
-FRAME_HEIGHT     = 460
+FRAME_HEIGHT     = 480
 FLIP_VIEW        = True
 
 YOLO_MODEL_PATH  = "yolov8s.pt"
@@ -47,16 +47,21 @@ THRESHOLD_MIN    = 4_000
 THRESHOLD_MAX    = 150_000
 THRESHOLD_STEP   = 2_000
 
-URDF_PATH = r"C:\Users\original\OneDrive\Desktop\GRAD VISION\urdf1\allsub7\urdf\allsub7.urdf"
-ARM_W, ARM_H     = 760, 560
+URDF_PATH = r"C:\Users\original\OneDrive\Desktop\GRAD VISION\HUSSEIN\urdf\HUSSEIN.urdf"
+ARM_W, ARM_H     = 600, 820          # Portrait render to match the tall arm panel.
 ARM_SWEEP_DEG    = 100.0
+# Per-joint sweep ranges in degrees, kept symmetric about 0 so the rest pose is
+# the URDF zero configuration -- which is the naturally extended, front-facing
+# pose for this arm. (The previous 60-120 deg centres folded the links back on
+# themselves.) The arm gently waves within these ranges while staying extended.
 RANGE_JOINTS     = {
-    0: (60.0, 90.0),
-    1: (60.0, 90.0),
-    2: (60.0, 90.0),
-    3: (60.0, 120.0),
+    0: (-30.0, 30.0),   # BASE  (waist)
+    1: (-18.0, 18.0),   # SHOULDER
+    2: (-22.0, 22.0),   # ELBOW
+    3: (-15.0, 15.0),   # PITCH
+    4: (-35.0, 35.0),   # ROLL
 }
-FIXED_JOINTS     = {3: 100.0}
+FIXED_JOINTS     = {}
 ARM_SPEED        = 0.45
 
 FACE_DB_PATH     = r"C:\Users\original\OneDrive\Desktop\GRAD VISION\Models\faces_db.npz"
@@ -617,10 +622,15 @@ class RobotArm3D:
             self._link_colors.append([r, g, b, 1.0])
 
     def _camera_pose(self):
-        d = self._radius * 0.85
-        eye = self._center + np.array([d * 0.8, -d * 0.9, d * 0.7])
+        # View the arm from the front so it reads as upright and extended.
+        # This arm extends along -Y and is fairly planar (low Z), so looking
+        # roughly down +Z with the world -Y axis as screen-up presents it
+        # standing (base at the bottom, end-effector at the top).
+        eyedir = np.array([0.45, -0.35, 1.0])
+        eyedir /= np.linalg.norm(eyedir)
+        eye = self._center + eyedir * (self._radius * 1.30)
         fwd = self._center - eye; fwd /= np.linalg.norm(fwd)
-        up = np.array([0.0, 0.0, 1.0])
+        up = np.array([0.0, -1.0, 0.0])
         right = np.cross(fwd, up); right /= np.linalg.norm(right)
         true_up = np.cross(right, fwd)
         pose = np.eye(4)
@@ -848,9 +858,10 @@ class VideoView(QWidget):
 
     rightClicked = Signal()
 
-    def __init__(self, placeholder="NO SIGNAL", parent=None):
+    def __init__(self, placeholder="NO SIGNAL", parent=None, lock_aspect=True):
         super().__init__(parent)
         self._img = None
+        self._lock_aspect = lock_aspect
         self._placeholder = placeholder
         self._estop = False
         self._flashing = False
@@ -862,10 +873,34 @@ class VideoView(QWidget):
         self._flash_stop.setSingleShot(True)
         self._flash_stop.timeout.connect(self.stop_flash)
         self.setMinimumSize(320, 240)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # When lock_aspect is on, the widget hugs the feed's aspect ratio so the
+        # box matches the camera (no stretch / crop / letterbox). When off, the
+        # widget just fills its box (used for the 3D arm so it can grow taller).
+        self._aspect = FRAME_WIDTH / FRAME_HEIGHT
+        if lock_aspect:
+            sp = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            sp.setHeightForWidth(True)
+            self.setSizePolicy(sp)
+        else:
+            self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setContextMenuPolicy(Qt.PreventContextMenu)
 
-    def set_image(self, img): self._img = img; self.update()
+    def hasHeightForWidth(self):
+        return self._lock_aspect
+
+    def heightForWidth(self, w):
+        return int(round(w / self._aspect)) if self._aspect > 0 else w
+
+    def set_image(self, img):
+        self._img = img
+        # Track the feed's true aspect ratio so the container hugs it exactly.
+        if (self._lock_aspect and img is not None and not img.isNull()
+                and img.height() > 0):
+            a = img.width() / img.height()
+            if abs(a - self._aspect) > 1e-3:
+                self._aspect = a
+                self.updateGeometry()
+        self.update()
     def set_placeholder(self, t): self._placeholder = t; self._img = None; self.update()
     def clear(self): self._img = None; self.update()
     def set_estop(self, on): self._estop = bool(on); self.update()
@@ -897,7 +932,11 @@ class VideoView(QWidget):
         p.setClipPath(path)
         p.fillRect(r, qc("#06080f"))
         if self._img is not None and not self._img.isNull():
-            s = self._img.scaled(self.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            # Preserve the feed's aspect ratio: never stretch or crop. Because the
+            # widget itself is locked to the feed ratio (heightForWidth), this also
+            # leaves no letterbox gaps.
+            s = self._img.scaled(self.size(), Qt.KeepAspectRatio,
+                                 Qt.SmoothTransformation)
             p.drawImage((self.width() - s.width()) // 2,
                         (self.height() - s.height()) // 2, s)
         else:
@@ -1048,11 +1087,11 @@ class StatChip(QFrame):
 class LinkLegend(QWidget):
 
 
-    SW   = 22
+    SW   = 16
     PADX = 12
-    PADY = 6
+    PADY = 3
     GAPX = 22
-    ROWH = 30
+    ROWH = 22
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1125,6 +1164,7 @@ class Sparkline(QFrame):
         super().paintEvent(e)
         p = QPainter(self); p.setRenderHint(QPainter.Antialiasing)
         m = 12
+        
         area = self.rect().adjusted(m, m + 14, -m, -m)
         col = qc(self._color)
         p.setPen(qc(C.MUTED)); p.setFont(QFont("Segoe UI", 8, QFont.Bold))
@@ -1152,7 +1192,7 @@ class SafetyTimeline(QFrame):
     def __init__(self, maxlen=200, parent=None):
         super().__init__(parent)
         self.setObjectName("card")
-        self.setMinimumHeight(96)
+        self.setMinimumHeight(70)
         self._data = deque(maxlen=maxlen)
 
     def push(self, safe): self._data.append(bool(safe)); self.update()
@@ -1160,12 +1200,15 @@ class SafetyTimeline(QFrame):
     def paintEvent(self, e):
         super().paintEvent(e)
         p = QPainter(self); p.setRenderHint(QPainter.Antialiasing)
-        m = 12
-        area = self.rect().adjusted(m, m + 14, -m, -m)
+        m = 6
         p.setPen(qc(C.MUTED)); p.setFont(QFont("Segoe UI", 8, QFont.Bold))
-        p.drawText(QRectF(m, 7, 240, 14), Qt.AlignLeft, "SAFETY TIMELINE")
+        p.drawText(QRectF(m, 4, 240, 14), Qt.AlignLeft, "SAFETY TIMELINE")
         if not self._data:
             return
+        area = self.rect().adjusted(m, m + 14, -m, -m)
+        # Clip the bars to a rounded rect so they stay inside the card border.
+        clip = QPainterPath(); clip.addRoundedRect(QRectF(area), 8, 8)
+        p.setClipPath(clip)
         n = self._data.maxlen; bw = area.width() / n
         for i, safe in enumerate(self._data):
             p.fillRect(QRectF(area.left() + i * bw, area.top(),
@@ -1239,21 +1282,6 @@ class MainWindow(QMainWindow):
         body.addWidget(self._build_right_rail(), 0)
         outer.addLayout(body, 1)
 
-        # Robot link colour key beside the safety monitor plot. The colour key
-        # gets the larger share so every link name fits on a single row.
-        strip = QHBoxLayout(); strip.setSpacing(12)
-        self.link_legend = LinkLegend()
-        self.legend_card = titled_card("ROBOT LINK COLOUR KEY",
-                                       self.link_legend, C.CYAN)
-        # Keep the swatches snug under the title instead of floating/centred
-        # when the card is stretched to match the Safety Monitor's height.
-        self.legend_card.layout().setAlignment(self.link_legend, Qt.AlignTop)
-        self.timeline = SafetyTimeline()
-        timeline_card = titled_card("SAFETY MONITOR", self.timeline, C.VIOLET)
-        strip.addWidget(self.legend_card, 3)
-        strip.addWidget(timeline_card, 1)
-        outer.addLayout(strip, 0)
-
         outer.addWidget(self._build_control_dock(), 0)
 
     def _build_header(self):
@@ -1279,13 +1307,30 @@ class MainWindow(QMainWindow):
         self.view_cam = VideoView("CAMERA OFFLINE   -   press START")
         cam_card = titled_card("LIVE CAMERA   •   YOLOv8 + HAND TRACKING",
                                self.view_cam, C.CYAN)
-        lay.addWidget(cam_card, 1)
+        # Camera keeps the feed's aspect ratio (heightForWidth), so it isn't
+        # letterboxed; the colour key + safety monitor stack sits beneath it.
+        lay.addWidget(cam_card, 0, Qt.AlignTop)
+
+        # Robot link colour key with the safety monitor stacked under it. These
+        # live in the left column (under the camera) so they don't span the full
+        # width; the 3D arm panel on the right stretches down to fill the space.
+        self.link_legend = LinkLegend()
+        self.legend_card = titled_card("ROBOT LINK COLOUR KEY",
+                                       self.link_legend, C.CYAN)
+        self.legend_card.layout().setAlignment(self.link_legend, Qt.AlignTop)
+        self.timeline = SafetyTimeline()
+        self.timeline_card = titled_card("SAFETY MONITOR", self.timeline, C.VIOLET)
+        lay.addWidget(self.legend_card)
+        lay.addWidget(self.timeline_card)
+        lay.addStretch(1)
         return col
 
     def _build_right_rail(self):
         rail = QWidget(); rail.setFixedWidth(480)
         lay = QVBoxLayout(rail); lay.setContentsMargins(0, 0, 0, 0); lay.setSpacing(12)
-        self.view_arm = VideoView("ROBOTIC ARM STANDBY")
+        # Don't aspect-lock the arm: let it fill its box so it can grow taller to
+        # match the camera + colour-key + safety-monitor stack on the left.
+        self.view_arm = VideoView("ROBOTIC ARM STANDBY", lock_aspect=False)
         self.arm_card = titled_card("ROBOTIC ARM   •   3D URDF MODEL",
                                     self.view_arm, C.VIOLET)
         lay.addWidget(self.arm_card, 1)
@@ -1295,8 +1340,7 @@ class MainWindow(QMainWindow):
         self.chip_state = StatChip("Arm", C.GREEN)
         self.chip_obj = StatChip("Objects", C.AMBER)
         self.chip_hands = StatChip("Hands", C.CYAN)
-        self.chip_face = StatChip("Identity", C.VIOLET)
-        for c in (self.chip_state, self.chip_obj, self.chip_hands, self.chip_face):
+        for c in (self.chip_state, self.chip_obj, self.chip_hands):
             chips.addWidget(c)
         lay.addLayout(chips, 0)
         return rail
@@ -1431,7 +1475,6 @@ class MainWindow(QMainWindow):
         self._reset_estop()
         self.pill.set_safe(True)
         self.chip_state.set("--", C.GREEN)
-        self.chip_face.set("--", C.MUTED)
         self._close_session_log()
 
     def _on_frame(self, img, r: FrameResult):
@@ -1459,12 +1502,6 @@ class MainWindow(QMainWindow):
         self.chip_obj.set(f"{r.objects} !" if r.collision else r.objects,
                           C.RED if r.collision else C.AMBER)
         self.chip_hands.set(r.hands, C.CYAN)
-        if r.identities:
-            self.chip_face.set(", ".join(r.identities), C.VIOLET)
-        elif r.faces:
-            self.chip_face.set("Unknown", C.AMBER)
-        else:
-            self.chip_face.set("--", C.MUTED)
 
         self.timeline.push(safe)
 
