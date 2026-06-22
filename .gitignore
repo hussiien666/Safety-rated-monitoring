@@ -16,7 +16,7 @@ env/
 ENV/
 
 known_faces/
-faces_db.npz
+
 
 snapshots/
 
@@ -36,5 +36,3 @@ desktop.ini
 *.tmp
 *.bak
 
-URDF/
-urdf1/

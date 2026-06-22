@@ -1,0 +1,337 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="HUSSEIN">
+  <link
+    name="BASE">
+    <inertial>
+      <origin
+        xyz="0.0021013 -0.0085471 -0.018871"
+        rpy="0 0 0" />
+      <mass
+        value="0.06306" />
+      <inertia
+        ixx="3.4483E-05"
+        ixy="2.394E-08"
+        ixz="-7.0995E-09"
+        iyy="1.5289E-05"
+        iyz="3.1071E-07"
+        izz="3.2674E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HUSSEIN/meshes/BASE.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.75294 0.75294 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HUSSEIN/meshes/BASE.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="SHOULDER">
+    <inertial>
+      <origin
+        xyz="-2.95779799797177E-05 0.0269115186751801 0.000935763175241329"
+        rpy="0 0 0" />
+      <mass
+        value="0.0459988233867464" />
+      <inertia
+        ixx="1.19980788881227E-05"
+        ixy="-1.01847363113016E-08"
+        ixz="1.49862389961452E-09"
+        iyy="6.96713132976361E-06"
+        iyz="1.90997328451324E-07"
+        izz="1.02140084143326E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HUSSEIN/meshes/SHOULDER.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HUSSEIN/meshes/SHOULDER.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="BASE"
+    type="revolute">
+    <origin
+      xyz="0 0 0"
+      rpy="3.1416 -0.060146 0" />
+    <parent
+      link="BASE" />
+    <child
+      link="SHOULDER" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="0"
+      upper="5.2"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="ELBOW">
+    <inertial>
+      <origin
+        xyz="-1.96233611012495E-05 0.0725175856715871 0.000544138908815472"
+        rpy="0 0 0" />
+      <mass
+        value="0.0693327397963304" />
+      <inertia
+        ixx="2.21022106090659E-05"
+        ixy="-1.01848777081293E-08"
+        ixz="1.49861061128244E-09"
+        iyy="1.4328943296584E-05"
+        iyz="1.90997254980255E-07"
+        izz="1.53577421041921E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HUSSEIN/meshes/ELBOW.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HUSSEIN/meshes/ELBOW.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="SHOULDER"
+    type="revolute">
+    <origin
+      xyz="0 0.0415 0"
+      rpy="0 0 1.1965" />
+    <parent
+      link="SHOULDER" />
+    <child
+      link="ELBOW" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="5.2"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="WRIST_PITCH">
+    <inertial>
+      <origin
+        xyz="-1.96234885152524E-05 0.0725175857065122 0.000544138947018986"
+        rpy="0 0 0" />
+      <mass
+        value="0.0693327400959451" />
+      <inertia
+        ixx="2.21022105714032E-05"
+        ixy="-1.01848186468406E-08"
+        ixz="1.49863823799297E-09"
+        iyy="1.43289433428069E-05"
+        iyz="1.90997217857999E-07"
+        izz="1.53577419492212E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HUSSEIN/meshes/WRIST_PITCH.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HUSSEIN/meshes/WRIST_PITCH.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="ELBOW"
+    type="revolute">
+    <origin
+      xyz="0 0.105 0"
+      rpy="0 0 -1.7617" />
+    <parent
+      link="ELBOW" />
+    <child
+      link="WRIST_PITCH" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="5.2"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="WRITS_ROLL">
+    <inertial>
+      <origin
+        xyz="0.00053178945767566 0.0429306608531656 -2.25160036825475E-05"
+        rpy="0 0 0" />
+      <mass
+        value="0.0579314580219943" />
+      <inertia
+        ixx="9.18901970597092E-06"
+        ixy="1.86151057563902E-07"
+        ixz="-1.03128223844021E-08"
+        iyy="1.582799845249E-05"
+        iyz="1.49859148213519E-09"
+        izz="1.77886093805345E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HUSSEIN/meshes/WRITS_ROLL.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HUSSEIN/meshes/WRITS_ROLL.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="PITCH"
+    type="revolute">
+    <origin
+      xyz="0 0.105 0"
+      rpy="-0.91272 -1.5708 1.4738" />
+    <parent
+      link="WRIST_PITCH" />
+    <child
+      link="WRITS_ROLL" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="0"
+      upper="5.2"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="END_EFFECTOR">
+    <inertial>
+      <origin
+        xyz="-1.78940336686279E-05 0.0064856090978529 0.0386604508304883"
+        rpy="0 0 0" />
+      <mass
+        value="0.0728944845262852" />
+      <inertia
+        ixx="1.6424138732261E-05"
+        ixy="-1.03129699392518E-08"
+        ixz="1.4986258470439E-09"
+        iyy="1.19399618389016E-05"
+        iyz="2.02586779968553E-07"
+        izz="1.79577755907799E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HUSSEIN/meshes/END_EFFECTOR.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HUSSEIN/meshes/END_EFFECTOR.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="ROLL"
+    type="revolute">
+    <origin
+      xyz="0.0135 0.0705 0"
+      rpy="1.5708 0.35769 3.1416" />
+    <parent
+      link="WRITS_ROLL" />
+    <child
+      link="END_EFFECTOR" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="5.2"
+      effort="0"
+      velocity="0" />
+  </joint>
+</robot>
