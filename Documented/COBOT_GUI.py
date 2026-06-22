@@ -62,7 +62,7 @@ from PySide6.QtWidgets import (                    # Qt widgets used to build th
 
 CAM_INDEX        = 0                               # Which camera to open (0 = default webcam).
 FRAME_WIDTH      = 640                             # Requested capture width.
-FRAME_HEIGHT     = 460                             # Requested capture height.
+FRAME_HEIGHT     = 480                             # Requested capture height (4:3; 460 was non-standard).
 FLIP_VIEW        = True                            # Mirror the feed (selfie view) by default.
 
 YOLO_MODEL_PATH  = "yolov8s.pt"                    # YOLOv8-small weights file.
@@ -77,20 +77,23 @@ THRESHOLD_MIN    = 4_000                           # Slider minimum.
 THRESHOLD_MAX    = 150_000                         # Slider maximum.
 THRESHOLD_STEP   = 2_000                           # Slider / keyboard step.
 
-URDF_PATH = r"C:\Users\original\OneDrive\Desktop\GRAD VISION\urdf1\allsub7\urdf\allsub7.urdf"  # 3-D arm model.
-ARM_W, ARM_H     = 760, 560                        # Off-screen arm render size.
-ARM_SWEEP_DEG    = 100.0    # max swing per joint: +-100 deg (100 left, 100 right)
+URDF_PATH = r"C:\Users\original\OneDrive\Desktop\GRAD VISION\HUSSEIN\urdf\HUSSEIN.urdf"  # 3-D arm model.
+ARM_W, ARM_H     = 600, 820                        # Off-screen arm render size (portrait, matches the tall arm panel).
+ARM_SWEEP_DEG    = 100.0    # max swing per joint: +-100 deg (only used for joints not in RANGE_JOINTS)
 # Per-joint sweep range, in degrees.  Actuated joints (from the URDF) are:
-#   index 0 = m2,  1 = m3,  2 = m4,  3 = m5
-# Edit each (min, max) pair to taste.
+#   index 0 = BASE, 1 = SHOULDER, 2 = ELBOW, 3 = PITCH, 4 = ROLL
+# Ranges are symmetric about 0 so the rest pose is the URDF zero configuration,
+# which is the naturally extended, front-facing pose for this arm.  (The old
+# 60-120 deg centres folded the links back on themselves.)
 RANGE_JOINTS     = {                               # Explicit (min,max) sweep per joint index (degrees):
-    0: (60.0, 90.0),   # m2
-    1: (60.0, 90.0),   # m3  (link 2)
-    2: (60.0, 90.0),   # m4
-    3: (60.0, 120.0),   # m5  (link 4)
+    0: (-30.0, 30.0),   # BASE  (waist)
+    1: (-18.0, 18.0),   # SHOULDER
+    2: (-22.0, 22.0),   # ELBOW
+    3: (-15.0, 15.0),   # PITCH
+    4: (-35.0, 35.0),   # ROLL
 }
 # joint index -> fixed angle in deg; overrides RANGE_JOINTS for that joint.
-FIXED_JOINTS     = {3: 100.0}   # link 4 held at 100 deg (remove this line to let it sweep)
+FIXED_JOINTS     = {}            # none pinned: every joint sweeps gently around the extended pose.
 ARM_SPEED        = 0.45                            # Sweep phase increment per rendered arm frame.
 
 # Face recognition (InsightFace buffalo_l + faces_db.npz)
@@ -716,10 +719,15 @@ class RobotArm3D:
             self._link_colors.append([r, g, b, 1.0])
 
     def _camera_pose(self):
-        d = self._radius * 0.85                    # Camera distance from the model.
-        eye = self._center + np.array([d * 0.8, -d * 0.9, d * 0.7])  # Eye position (iso angle).
+        # View the arm from the front so it reads as upright and extended. This
+        # arm extends along -Y and is fairly planar (low Z), so looking roughly
+        # down +Z with the world -Y axis as screen-up presents it standing
+        # (base at the bottom, end-effector at the top).
+        eyedir = np.array([0.45, -0.35, 1.0])      # Eye direction (front, slightly above).
+        eyedir /= np.linalg.norm(eyedir)           # Normalise to a unit direction.
+        eye = self._center + eyedir * (self._radius * 1.30)  # Eye position (1.30 = framing margin).
         fwd = self._center - eye; fwd /= np.linalg.norm(fwd)  # Unit forward direction.
-        up = np.array([0.0, 0.0, 1.0])             # World up = +Z.
+        up = np.array([0.0, -1.0, 0.0])            # Screen-up = world -Y (arm stands upright).
         right = np.cross(fwd, up); right /= np.linalg.norm(right)  # Camera right axis.
         true_up = np.cross(right, fwd)             # Orthogonal up axis.
         pose = np.eye(4)                           # 4×4 camera-to-world matrix.
@@ -959,9 +967,10 @@ class VideoView(QWidget):
 
     rightClicked = Signal()                          # Emitted on right-click.
 
-    def __init__(self, placeholder="NO SIGNAL", parent=None):
+    def __init__(self, placeholder="NO SIGNAL", parent=None, lock_aspect=True):
         super().__init__(parent)
         self._img = None                             # Current image (or None → show placeholder).
+        self._lock_aspect = lock_aspect              # If True, the widget hugs the feed's aspect ratio.
         self._placeholder = placeholder              # Text shown when there's no image.
         self._estop = False                          # Whether the red e-stop overlay is latched.
         self._flashing = False                       # Whether the red-zone flash is active.
@@ -973,10 +982,34 @@ class VideoView(QWidget):
         self._flash_stop.setSingleShot(True)
         self._flash_stop.timeout.connect(self.stop_flash)
         self.setMinimumSize(320, 240)                # Don't collapse too small.
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)  # Fill available space.
+        # When lock_aspect is on, hug the feed's aspect ratio (no stretch / crop /
+        # letterbox); the camera uses this. When off, just fill the box -- the 3D
+        # arm uses this so it can grow taller than its native render ratio.
+        self._aspect = FRAME_WIDTH / FRAME_HEIGHT    # Default ratio; updated from real frames.
+        if lock_aspect:
+            sp = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            sp.setHeightForWidth(True)               # Height tracks width at the feed ratio.
+            self.setSizePolicy(sp)
+        else:
+            self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)  # Fill available space.
         self.setContextMenuPolicy(Qt.PreventContextMenu)  # Right-click is ours, not a context menu.
 
-    def set_image(self, img): self._img = img; self.update()          # Show a new frame.
+    def hasHeightForWidth(self):
+        return self._lock_aspect                     # Only constrain height when locking aspect.
+
+    def heightForWidth(self, w):
+        return int(round(w / self._aspect)) if self._aspect > 0 else w  # Box height for a given width.
+
+    def set_image(self, img):
+        self._img = img                              # Show a new frame.
+        # Track the feed's true aspect ratio so the container hugs it exactly.
+        if (self._lock_aspect and img is not None and not img.isNull()
+                and img.height() > 0):
+            a = img.width() / img.height()
+            if abs(a - self._aspect) > 1e-3:
+                self._aspect = a
+                self.updateGeometry()                # Re-ask the layout for height.
+        self.update()
     def set_placeholder(self, t): self._placeholder = t; self._img = None; self.update()  # Show text.
     def clear(self): self._img = None; self.update()                  # Clear the surface.
     def set_estop(self, on): self._estop = bool(on); self.update()    # Toggle the e-stop overlay.
@@ -1160,11 +1193,11 @@ class LinkLegend(QWidget):
     """Colour key for the 3D arm, painted directly: a big swatch + link name per
     link, flowing left-to-right and wrapping to new rows as needed."""
 
-    SW   = 22          # swatch size
+    SW   = 16          # swatch size
     PADX = 12                                         # Horizontal padding.
-    PADY = 6                                          # Vertical padding.
+    PADY = 3                                          # Vertical padding.
     GAPX = 22          # gap between entries
-    ROWH = 30          # row height
+    ROWH = 22          # row height
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1266,7 +1299,7 @@ class SafetyTimeline(QFrame):
     def __init__(self, maxlen=200, parent=None):
         super().__init__(parent)
         self.setObjectName("card")
-        self.setMinimumHeight(96)
+        self.setMinimumHeight(70)
         self._data = deque(maxlen=maxlen)             # Ring buffer of safe(True)/unsafe(False).
 
     def push(self, safe): self._data.append(bool(safe)); self.update()  # Record one state.
@@ -1274,12 +1307,15 @@ class SafetyTimeline(QFrame):
     def paintEvent(self, e):
         super().paintEvent(e)
         p = QPainter(self); p.setRenderHint(QPainter.Antialiasing)
-        m = 12
-        area = self.rect().adjusted(m, m + 14, -m, -m)
+        m = 6
         p.setPen(qc(C.MUTED)); p.setFont(QFont("Segoe UI", 8, QFont.Bold))
-        p.drawText(QRectF(m, 7, 240, 14), Qt.AlignLeft, "SAFETY TIMELINE")  # Title.
+        p.drawText(QRectF(m, 4, 240, 14), Qt.AlignLeft, "SAFETY TIMELINE")  # Title.
         if not self._data:
             return
+        area = self.rect().adjusted(m, m + 14, -m, -m)
+        # Clip the bars to a rounded rect so they stay inside the card border.
+        clip = QPainterPath(); clip.addRoundedRect(QRectF(area), 8, 8)
+        p.setClipPath(clip)
         n = self._data.maxlen; bw = area.width() / n  # One column per possible sample.
         for i, safe in enumerate(self._data):         # Draw a green/red bar per recorded state.
             p.fillRect(QRectF(area.left() + i * bw, area.top(),
@@ -1402,7 +1438,8 @@ class MainWindow(QMainWindow):
     def _build_right_rail(self):
         rail = QWidget(); rail.setFixedWidth(560)     # Fixed-width right column.
         lay = QVBoxLayout(rail); lay.setContentsMargins(0, 0, 0, 0); lay.setSpacing(12)
-        self.view_arm = VideoView("ROBOTIC ARM STANDBY")  # The arm surface.
+        # Don't aspect-lock the arm: let it fill its box so it can grow taller.
+        self.view_arm = VideoView("ROBOTIC ARM STANDBY", lock_aspect=False)  # The arm surface.
         self.arm_card = titled_card("ROBOTIC ARM   •   3D URDF MODEL",  # Wrapped in a card.
                                     self.view_arm, C.VIOLET)
         lay.addWidget(self.arm_card, 1)
@@ -1414,9 +1451,6 @@ class MainWindow(QMainWindow):
         for c in (self.chip_state, self.chip_obj, self.chip_hands):
             chips.addWidget(c)
         lay.addLayout(chips, 0)
-
-        self.chip_face = StatChip("Identity", C.VIOLET)  # Recognised-identity chip.
-        lay.addWidget(self.chip_face, 0)
         return rail
 
     def _build_telemetry(self):
@@ -1564,7 +1598,6 @@ class MainWindow(QMainWindow):
         self._reset_estop()                           # Clear e-stop.
         self.pill.set_safe(True)                      # Pill back to safe.
         self.chip_state.set("--", C.GREEN)            # Reset chips.
-        self.chip_face.set("--", C.MUTED)
         self._close_session_log()                     # Write the session-end footer and close the log file.
 
     def _on_frame(self, img, r: FrameResult):
@@ -1600,12 +1633,6 @@ class MainWindow(QMainWindow):
         self.chip_obj.set(f"{r.objects} !" if r.collision else r.objects,  # Object chip (! on collision).
                           C.RED if r.collision else C.AMBER)
         self.chip_hands.set(r.hands, C.CYAN)          # Hand-count chip.
-        if r.identities:                              # If known people are present...
-            self.chip_face.set(", ".join(r.identities), C.VIOLET)  # ...show their names.
-        elif r.faces:                                 # Faces but none known...
-            self.chip_face.set("Unknown", C.AMBER)    # ...show "Unknown".
-        else:
-            self.chip_face.set("--", C.MUTED)         # No faces.
 
         self.spark.push(r.fps); self.spark_lat.push(r.infer_ms)  # Feed the charts.
         self.timeline.push(safe)                      # Feed the safety timeline.

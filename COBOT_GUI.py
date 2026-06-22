@@ -48,18 +48,14 @@ THRESHOLD_MAX    = 150_000
 THRESHOLD_STEP   = 2_000
 
 URDF_PATH = r"C:\Users\original\OneDrive\Desktop\GRAD VISION\HUSSEIN\urdf\HUSSEIN.urdf"
-ARM_W, ARM_H     = 600, 820          # Portrait render to match the tall arm panel.
+ARM_W, ARM_H     = 600, 820
 ARM_SWEEP_DEG    = 100.0
-# Per-joint sweep ranges in degrees, kept symmetric about 0 so the rest pose is
-# the URDF zero configuration -- which is the naturally extended, front-facing
-# pose for this arm. (The previous 60-120 deg centres folded the links back on
-# themselves.) The arm gently waves within these ranges while staying extended.
 RANGE_JOINTS     = {
-    0: (-30.0, 30.0),   # BASE  (waist)
-    1: (-18.0, 18.0),   # SHOULDER
-    2: (-22.0, 22.0),   # ELBOW
-    3: (-15.0, 15.0),   # PITCH
-    4: (-35.0, 35.0),   # ROLL
+    0: (-30.0, 30.0),
+    1: (-18.0, 18.0),
+    2: (-22.0, 22.0),
+    3: (-15.0, 15.0),
+    4: (-35.0, 35.0),
 }
 FIXED_JOINTS     = {}
 ARM_SPEED        = 0.45
@@ -622,10 +618,6 @@ class RobotArm3D:
             self._link_colors.append([r, g, b, 1.0])
 
     def _camera_pose(self):
-        # View the arm from the front so it reads as upright and extended.
-        # This arm extends along -Y and is fairly planar (low Z), so looking
-        # roughly down +Z with the world -Y axis as screen-up presents it
-        # standing (base at the bottom, end-effector at the top).
         eyedir = np.array([0.45, -0.35, 1.0])
         eyedir /= np.linalg.norm(eyedir)
         eye = self._center + eyedir * (self._radius * 1.30)
@@ -873,9 +865,6 @@ class VideoView(QWidget):
         self._flash_stop.setSingleShot(True)
         self._flash_stop.timeout.connect(self.stop_flash)
         self.setMinimumSize(320, 240)
-        # When lock_aspect is on, the widget hugs the feed's aspect ratio so the
-        # box matches the camera (no stretch / crop / letterbox). When off, the
-        # widget just fills its box (used for the 3D arm so it can grow taller).
         self._aspect = FRAME_WIDTH / FRAME_HEIGHT
         if lock_aspect:
             sp = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
@@ -893,7 +882,6 @@ class VideoView(QWidget):
 
     def set_image(self, img):
         self._img = img
-        # Track the feed's true aspect ratio so the container hugs it exactly.
         if (self._lock_aspect and img is not None and not img.isNull()
                 and img.height() > 0):
             a = img.width() / img.height()
@@ -932,9 +920,6 @@ class VideoView(QWidget):
         p.setClipPath(path)
         p.fillRect(r, qc("#06080f"))
         if self._img is not None and not self._img.isNull():
-            # Preserve the feed's aspect ratio: never stretch or crop. Because the
-            # widget itself is locked to the feed ratio (heightForWidth), this also
-            # leaves no letterbox gaps.
             s = self._img.scaled(self.size(), Qt.KeepAspectRatio,
                                  Qt.SmoothTransformation)
             p.drawImage((self.width() - s.width()) // 2,
@@ -1206,7 +1191,6 @@ class SafetyTimeline(QFrame):
         if not self._data:
             return
         area = self.rect().adjusted(m, m + 14, -m, -m)
-        # Clip the bars to a rounded rect so they stay inside the card border.
         clip = QPainterPath(); clip.addRoundedRect(QRectF(area), 8, 8)
         p.setClipPath(clip)
         n = self._data.maxlen; bw = area.width() / n
@@ -1307,13 +1291,8 @@ class MainWindow(QMainWindow):
         self.view_cam = VideoView("CAMERA OFFLINE   -   press START")
         cam_card = titled_card("LIVE CAMERA   •   YOLOv8 + HAND TRACKING",
                                self.view_cam, C.CYAN)
-        # Camera keeps the feed's aspect ratio (heightForWidth), so it isn't
-        # letterboxed; the colour key + safety monitor stack sits beneath it.
         lay.addWidget(cam_card, 0, Qt.AlignTop)
 
-        # Robot link colour key with the safety monitor stacked under it. These
-        # live in the left column (under the camera) so they don't span the full
-        # width; the 3D arm panel on the right stretches down to fill the space.
         self.link_legend = LinkLegend()
         self.legend_card = titled_card("ROBOT LINK COLOUR KEY",
                                        self.link_legend, C.CYAN)
@@ -1328,14 +1307,11 @@ class MainWindow(QMainWindow):
     def _build_right_rail(self):
         rail = QWidget(); rail.setFixedWidth(480)
         lay = QVBoxLayout(rail); lay.setContentsMargins(0, 0, 0, 0); lay.setSpacing(12)
-        # Don't aspect-lock the arm: let it fill its box so it can grow taller to
-        # match the camera + colour-key + safety-monitor stack on the left.
         self.view_arm = VideoView("ROBOTIC ARM STANDBY", lock_aspect=False)
         self.arm_card = titled_card("ROBOTIC ARM   •   3D URDF MODEL",
                                     self.view_arm, C.VIOLET)
         lay.addWidget(self.arm_card, 1)
 
-        # Single status row, centred/aligned under the 3D viewer.
         chips = QHBoxLayout(); chips.setSpacing(10)
         self.chip_state = StatChip("Arm", C.GREEN)
         self.chip_obj = StatChip("Objects", C.AMBER)
