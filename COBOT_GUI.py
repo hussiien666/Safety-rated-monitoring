@@ -47,7 +47,9 @@ THRESHOLD_MIN    = 4_000
 THRESHOLD_MAX    = 150_000
 THRESHOLD_STEP   = 2_000
 
-URDF_PATH = r"C:\Users\original\OneDrive\Desktop\GRAD VISION\HUSSEIN\urdf\HUSSEIN.urdf"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+URDF_PATH = os.path.join(BASE_DIR, "HUSSEIN", "urdf", "HUSSEIN.urdf")
 ARM_W, ARM_H     = 600, 820
 ARM_SWEEP_DEG    = 100.0
 RANGE_JOINTS     = {
@@ -60,7 +62,7 @@ RANGE_JOINTS     = {
 FIXED_JOINTS     = {}
 ARM_SPEED        = 0.45
 
-FACE_DB_PATH     = r"C:\Users\original\OneDrive\Desktop\GRAD VISION\Models\faces_db.npz"
+FACE_DB_PATH     = os.path.join(BASE_DIR, "faces_db.npz")
 FACE_THRESHOLD   = 0.50
 FACE_EVERY_N     = 2
 
@@ -569,7 +571,17 @@ class RobotArm3D:
         import pyrender
         self._pyrender = pyrender
         self.width, self.height = width, height
-        self.robot = yourdfpy.URDF.load(urdf_path)
+
+        def _resolve(fname):
+            """Map URDF 'package://HUSSEIN/...' refs onto the local project tree."""
+            if fname.startswith("package://"):
+                rel = fname[len("package://"):].lstrip("/")
+                return os.path.join(BASE_DIR, rel)
+            if os.path.isabs(fname):
+                return fname
+            return os.path.join(os.path.dirname(urdf_path), fname)
+
+        self.robot = yourdfpy.URDF.load(urdf_path, filename_handler=_resolve)
         self.joint_names = list(self.robot.actuated_joint_names)
         max_swing = math.radians(ARM_SWEEP_DEG)
         self._joint_motion = []
