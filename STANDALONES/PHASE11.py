@@ -38,13 +38,16 @@ HAND_KNUCKLE_SPAN_MM = 80.0
 INDEX_MCP_IDX = 5
 PINKY_MCP_IDX = 17
 
-ARM_WINDOW_NAME = "Robotic Arm"
-ARM_CANVAS_W = 640
-ARM_CANVAS_H = 460
-ARM_BASE = (ARM_CANVAS_W // 2, ARM_CANVAS_H - 60)
-ARM_L1 = 150
-ARM_L2 = 120
-ARM_SPEED = 0.04
+# Book measuring: YOLO tells us *that* a book is there, then a contour pass
+# inside its box finds the cover's true tilted rectangle so a book lying at an
+# angle is measured along its own edges, not along the axis-aligned box.
+BOOK_CLASS_NAMES = {"book"}
+BOOK_ROI_PAD = 6                 # px of slack around the YOLO box before refining
+BOOK_APPROX_EPS = 0.02           # approxPolyDP tolerance, fraction of perimeter
+BOOK_MIN_ROI_FRAC = 0.30         # refined cover must fill 30% of the YOLO box
+BOOK_MAX_ROI_FRAC = 0.95         # ...and must not BE the box (that is background)
+BOOK_MIN_FILL = 0.70             # contour area / its minAreaRect area
+SCALE_STALE_SECS = 5.0           # how long a hand-derived scale stays usable
 
 COLOR_GREEN = (0, 200, 0)
 COLOR_RED = (0, 0, 255)
@@ -102,6 +105,76 @@ def compute_mm_per_pixel(landmarks, frame_width, frame_height):
 		return None
 
 	return HAND_KNUCKLE_SPAN_MM / span_px
+
+
+def measure_book(frame, x1, y1, x2, y2):
+	"""Refine a YOLO book box into the cover's true tilted rectangle.
+
+	Returns (quad, short_px, long_px). `quad` is the 4x2 corner array in full
+	frame coordinates. Falls back to the axis-aligned YOLO box when no clean
+	cover contour can be found inside it (busy background, partial occlusion).
+	"""
+	frame_h, frame_w = frame.shape[:2]
+	rx1 = max(0, x1 - BOOK_ROI_PAD)
+	ry1 = max(0, y1 - BOOK_ROI_PAD)
+	rx2 = min(frame_w, x2 + BOOK_ROI_PAD)
+	ry2 = min(frame_h, y2 + BOOK_ROI_PAD)
+
+	box_quad = np.array([[x1, y1], [x2, y1], [x2, y2], [x1, y2]], dtype=int)
+	fallback = (box_quad, float(min(x2 - x1, y2 - y1)), float(max(x2 - x1, y2 - y1)))
+
+	roi = frame[ry1:ry2, rx1:rx2]
+	if roi.size == 0:
+		return fallback
+
+	grey = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+	grey = cv2.GaussianBlur(grey, (5, 5), 0)
+
+	# Otsu separates the cover from whatever it is lying on, without a
+	# hand-tuned threshold; the closing fills gaps that print and glare punch
+	# in the cover. Both polarities are tried since a book may be lighter or
+	# darker than its background.
+	_, mask = cv2.threshold(grey, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+	kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+
+	roi_area = float(roi.shape[0] * roi.shape[1])
+	best = None
+
+	for candidate_mask in (mask, cv2.bitwise_not(mask)):
+		closed = cv2.morphologyEx(candidate_mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+		contours, _ = cv2.findContours(
+			closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+		)
+		for contour in contours:
+			area = cv2.contourArea(contour)
+			# The upper bound matters: on the inverted mask the *background*
+			# forms one contour the size of the whole ROI, which would
+			# otherwise win on area and hand back the padded box.
+			if not (BOOK_MIN_ROI_FRAC * roi_area <= area <= BOOK_MAX_ROI_FRAC * roi_area):
+				continue
+
+			(_, _), (rect_w, rect_h), _ = cv2.minAreaRect(contour)
+			if rect_w < 1 or rect_h < 1:
+				continue
+			if area / (rect_w * rect_h) < BOOK_MIN_FILL:
+				continue
+
+			peri = cv2.arcLength(contour, True)
+			approx = cv2.approxPolyDP(contour, BOOK_APPROX_EPS * peri, True)
+			if len(approx) != 4 or not cv2.isContourConvex(approx):
+				continue
+
+			if best is None or area > best[0]:
+				best = (area, approx.reshape(4, 2).astype(int), rect_w, rect_h)
+
+	if best is None:
+		return fallback
+
+	_, quad, rect_w, rect_h = best
+	# ROI -> full-frame coordinates
+	quad = (quad + np.array([rx1, ry1])).astype(np.int32)
+	short_px, long_px = sorted((rect_w, rect_h))
+	return quad, short_px, long_px
 
 
 def draw_label(frame, text, x, y, bg_color, text_color=COLOR_WHITE):
@@ -202,49 +275,6 @@ def draw_safety_banner(frame, safety_state, fps, threshold, collision_risk):
 		)
 
 
-def render_arm(phase: float, stopped: bool):
-    """Draw a 2-link robotic arm reaching toward a red target zone.
-
-    `phase` drives a continuous sweeping motion. When `stopped` is True the
-    arm is frozen (the hand has reached the red zone) and the banner shows STOP.
-    """
-    canvas = np.full((ARM_CANVAS_H, ARM_CANVAS_W, 3), 40, dtype=np.uint8)
-
-    zone_tl = (ARM_CANVAS_W - 170, 40)
-    zone_br = (ARM_CANVAS_W - 40, 170)
-    zone_color = COLOR_RED if stopped else (40, 40, 120)
-    cv2.rectangle(canvas, zone_tl, zone_br, zone_color, -1)
-    cv2.rectangle(canvas, zone_tl, zone_br, COLOR_RED, 2)
-    cv2.putText(canvas, "RED ZONE", (zone_tl[0] - 4, zone_tl[1] - 8),
-                FONT, 0.5, COLOR_RED, 2, cv2.LINE_AA)
-
-    base_angle = -math.pi / 2
-    a1 = base_angle + 0.6 * math.sin(phase)
-    a2 = -0.8 + 0.7 * math.sin(phase * 1.3)
-
-    bx, by = ARM_BASE
-    jx = int(bx + ARM_L1 * math.cos(a1))
-    jy = int(by + ARM_L1 * math.sin(a1))
-    ex = int(jx + ARM_L2 * math.cos(a1 + a2))
-    ey = int(jy + ARM_L2 * math.sin(a1 + a2))
-
-    arm_color = COLOR_RED if stopped else COLOR_GREEN
-
-    cv2.circle(canvas, (bx, by), 14, COLOR_WHITE, -1)
-    cv2.line(canvas, (bx, by), (jx, jy), arm_color, 10)
-    cv2.circle(canvas, (jx, jy), 9, COLOR_WHITE, -1)
-    cv2.line(canvas, (jx, jy), (ex, ey), arm_color, 8)
-    cv2.circle(canvas, (ex, ey), 11, COLOR_YELLOW, -1)
-    cv2.circle(canvas, (ex, ey), 11, arm_color, 2)
-
-    status = "STOPPED - HAND IN RED ZONE" if stopped else "MOVING"
-    cv2.rectangle(canvas, (0, 0), (ARM_CANVAS_W, 36), arm_color, -1)
-    cv2.putText(canvas, status, (10, 26), FONT, 0.7, COLOR_WHITE, 2, cv2.LINE_AA)
-
-    return canvas
-
-
-
 cap = cv2.VideoCapture(CAM_INDEX, cv2.CAP_DSHOW)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
@@ -253,7 +283,11 @@ prev_time = time.perf_counter()
 last_state = None
 
 threshold = HAND_AREA_THRESHOLD
-arm_phase = 0.0
+
+# The hand ruler only exists while a hand is visible, so remember the last
+# scale it gave us and keep measuring books for a few seconds after it leaves.
+last_mm_per_px = None
+last_scale_time = 0.0
 
 while True:
 	ret, frame = cap.read()
@@ -262,6 +296,10 @@ while True:
 
 	if FLIP_VIEW:
 		frame = cv2.flip(frame, 1)
+
+	# Keep an un-annotated copy: the book refiner thresholds the image, and the
+	# boxes/landmarks drawn below would otherwise show up as fake cover edges.
+	clean_frame = frame.copy()
 
 	yolo_kwargs = {
 		"conf": YOLO_CONF_THRESHOLD,
@@ -272,6 +310,7 @@ while True:
 
 	yolo_results = yolo_model.predict(frame, **yolo_kwargs)
 	objects_detected = False
+	book_boxes = []
 
 	for result in yolo_results:
 		names = result.names
@@ -280,12 +319,17 @@ while True:
 			if conf < YOLO_CONF_THRESHOLD:
 				continue
 			cls_id = int(box.cls[0])
-			label = f"{names.get(cls_id, str(cls_id))} {conf * 100:.1f}%"
+			cls_name = names.get(cls_id, str(cls_id))
+			label = f"{cls_name} {conf * 100:.1f}%"
 			x1, y1, x2, y2 = box.xyxy[0].tolist()
 			x1, y1, x2, y2 = map(int, (x1, y1, x2, y2))
 
-			cv2.rectangle(frame, (x1, y1), (x2, y2), COLOR_YELLOW, 2)
-			draw_label(frame, label, x1, y1, COLOR_BLACK)
+			if cls_name in BOOK_CLASS_NAMES:
+				# Measured below; its own outline is drawn there instead.
+				book_boxes.append((x1, y1, x2, y2, conf))
+			else:
+				cv2.rectangle(frame, (x1, y1), (x2, y2), COLOR_YELLOW, 2)
+				draw_label(frame, label, x1, y1, COLOR_BLACK)
 			objects_detected = True
 
 	rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -319,6 +363,8 @@ while True:
 			if mm_per_px is None:
 				size_text = "W: -- mm  H: -- mm"
 			else:
+				last_mm_per_px = mm_per_px
+				last_scale_time = time.perf_counter()
 				size_text = (
 					f"W: {box_w * mm_per_px:.0f} mm  H: {box_h * mm_per_px:.0f} mm"
 				)
@@ -335,6 +381,34 @@ while True:
 
 			if area > threshold:
 				safety_state = "RED"
+
+	# --- Books: outline each one and label its size in millimetres -----------
+	scale_fresh = (
+		last_mm_per_px is not None
+		and (time.perf_counter() - last_scale_time) < SCALE_STALE_SECS
+	)
+
+	for bx1, by1, bx2, by2, bconf in book_boxes:
+		quad, short_px, long_px = measure_book(clean_frame, bx1, by1, bx2, by2)
+		cv2.polylines(frame, [quad], True, COLOR_YELLOW, 2)
+
+		if scale_fresh:
+			short_mm = short_px * last_mm_per_px
+			long_mm = long_px * last_mm_per_px
+			book_text = f"BOOK {long_mm:.0f} x {short_mm:.0f} mm"
+		else:
+			book_text = "BOOK -- mm (show hand to calibrate)"
+
+		label_x = int(quad[:, 0].min())
+		label_y = int(quad[:, 1].min())
+		draw_label(
+			frame,
+			f"{book_text}  {bconf * 100:.0f}%",
+			max(0, label_x),
+			max(18, label_y),
+			COLOR_BLACK,
+			COLOR_YELLOW,
+		)
 
 	collision_risk = safety_state == "RED" and objects_detected
 
@@ -353,11 +427,6 @@ while True:
 	draw_threshold_indicator(frame, threshold)
 
 	cv2.imshow(WINDOW_NAME, frame)
-
-	arm_stopped = safety_state == "RED"
-	if not arm_stopped:
-		arm_phase += ARM_SPEED
-	cv2.imshow(ARM_WINDOW_NAME, render_arm(arm_phase, arm_stopped))
 
 	key = cv2.waitKeyEx(1)
 
