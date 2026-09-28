@@ -1,5 +1,21 @@
+import logging
 import math
+import os
 import time
+
+# MediaPipe drags TensorFlow in behind it, and TensorFlow greets every run with
+# a page of oneDNN and Keras-deprecation notices. None of it is an error and
+# none of it is ours - it just buries the output that matters. The gags have to
+# go up before the import that loads TF, because the banner is printed as it
+# loads: set afterwards they are simply too late.
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")   # TF's C++ INFO + WARNING lines
+os.environ.setdefault("GLOG_minloglevel", "2")       # MediaPipe's own glog chatter
+logging.getLogger("tensorflow").setLevel(logging.ERROR)   # the Keras deprecations
+logging.getLogger("absl").setLevel(logging.ERROR)
+
+# Note this only hides the oneDNN notice; oneDNN itself stays on, so the numbers
+# do not change. Setting TF_ENABLE_ONEDNN_OPTS=0 instead - as the message
+# suggests - would actually turn those optimisations off.
 
 import cv2
 import numpy as np
@@ -9,7 +25,7 @@ import mediapipe as mp
 
 
 
-CAM_INDEX = 0
+CAM_INDEX = 1
 FRAME_WIDTH = 640
 FRAME_HEIGHT = 460
 FLIP_VIEW = True
@@ -21,15 +37,28 @@ MODEL_COMPLEXITY = 0
 MIN_HAND_DET_CONF = 0.6
 MIN_HAND_TRACK_CONF = 0.5
 
-# Live ruler (same one PHASE11 measures books with): the span across the
-# knuckles (index MCP -> pinky MCP) is roughly constant on an adult hand, so it
-# gives a mm-per-pixel scale that re-calibrates itself every frame as the hand
-# moves nearer to or farther from the camera.
-HAND_KNUCKLE_SPAN_MM = 80.0
-INDEX_MCP_IDX = 5
-PINKY_MCP_IDX = 17
-SCALE_STALE_SECS = 5.0           # how long a hand-derived scale stays usable
-SCALE_EMA = 0.25                 # smoothing on mm/px; raw knuckle span is noisy
+# The ruler is the camera mounting itself, not a hand waved at the lens. A lens
+# a known distance above a flat work surface sees a known width of that surface,
+# so mm-per-pixel is fixed geometry: it is there on the very first frame, with
+# nothing to show the camera and nothing to wait for.
+#
+#     view width (mm) = 2 * height * tan(hfov / 2)
+#     mm per pixel    = view width / frame width in px
+#
+# Two numbers have to be right for the millimetres to be right: how far the lens
+# is from the surface, and how wide the lens sees. Measure the height once, from
+# the lens to the table, and nudge it live with [ and ] until a known object
+# reads back its true size. HFOV is a property of the camera - most webcams are
+# somewhere around 55-70 degrees; the datasheet value is a good starting point.
+CAMERA_HEIGHT_MM = 400.0         # lens to the work surface, looking straight down
+CAMERA_HFOV_DEG = 60.0           # horizontal field of view of the lens
+HEIGHT_STEP_MM = 10.0            # [ and ] nudge the working distance by this
+MIN_CAMERA_HEIGHT_MM = 50.0
+
+# Everything here assumes the surfaces lie in one plane at that height. A sheet
+# lifted off the table is nearer the lens than the calibration assumes, so it
+# measures large - which is exactly the trade for not needing a reference in
+# frame. PHASE13 scales off a known sheet instead, and does not care about height.
 
 # White is "bright and colourless", so it is picked in HSV: any hue, low
 # saturation, high value. A plain grey threshold would also swallow bright
@@ -80,9 +109,10 @@ MAX_REGIONS = 4                  # only label the biggest few, to keep it readab
 QUAD_EPS_STEPS = (0.01, 0.02, 0.03, 0.04, 0.05)
 QUAD_AREA_TOL = 0.12             # quad must account for the blob's area, +/-12%
 
-# The hand is the ruler, not a thing to measure. Blanking its box out of the
-# mask used to bite a notch out of a sheet being *held* - the sheet is what you
-# are measuring, so instead a region is dropped only when it is mostly hand.
+# Hands are tracked only so a pale hand is not measured as a white surface -
+# nothing about the scale depends on them any more. Blanking the hand box out of
+# the mask used to bite a notch out of a sheet being *held* - the sheet is what
+# you are measuring, so instead a region is dropped only when it is mostly hand.
 HAND_MASK_PAD = 18
 HAND_OVERLAP_DROP = 0.60         # region this much inside a hand box -> it is the hand
 
@@ -133,19 +163,16 @@ def compute_hand_bbox(landmarks, frame_width, frame_height):
 	return min_x, min_y, max_x, max_y
 
 
-def compute_mm_per_pixel(landmarks, frame_width, frame_height):
-	"""Scale factor from the hand's own knuckle span. None if it is degenerate."""
-	index_mcp = landmarks[INDEX_MCP_IDX]
-	pinky_mcp = landmarks[PINKY_MCP_IDX]
+def compute_mm_per_pixel(frame_width, height_mm, hfov_deg=CAMERA_HFOV_DEG):
+	"""Scale factor from the camera's own geometry - no reference object needed.
 
-	dx = (index_mcp.x - pinky_mcp.x) * frame_width
-	dy = (index_mcp.y - pinky_mcp.y) * frame_height
-	span_px = math.hypot(dx, dy)
-
-	if span_px < 1.0:
-		return None
-
-	return HAND_KNUCKLE_SPAN_MM / span_px
+	At a working distance of height_mm the lens spans 2*h*tan(hfov/2) millimetres
+	of the work surface, and the sensor spreads that across frame_width pixels.
+	The scale is therefore known before a single frame is looked at, and only
+	changes if the camera is moved.
+	"""
+	view_width_mm = 2.0 * height_mm * math.tan(math.radians(hfov_deg) / 2.0)
+	return view_width_mm / float(max(1, frame_width))
 
 
 def auto_val_threshold(value_channel):
@@ -223,7 +250,7 @@ def hand_regions_mask(shape, hand_boxes):
 
 
 def is_mostly_hand(bounds, hand_boxes):
-	"""True when this blob is the ruler hand rather than a surface it is holding.
+	"""True when this blob is a hand rather than a surface it is holding.
 
 	Judged by how much of the blob sits inside a hand box: a pale hand on its own
 	is almost entirely inside one, while a held sheet only overlaps at the grip.
@@ -425,21 +452,17 @@ def draw_label(frame, text, x, y, bg_color, text_color=COLOR_WHITE):
 
 
 def draw_banner(frame, white_px, total_px, region_count, mm_per_px, fps,
-				sat_max, val_min, auto_white):
+				sat_max, val_min, auto_white, height_mm):
 	cv2.rectangle(frame, (0, 0), (frame.shape[1], BANNER_H), COLOR_BLACK, -1)
 
 	percent = 100.0 * white_px / max(1, total_px)
-	scale_text = (
-		f"scale {mm_per_px:.3f} mm/px" if mm_per_px is not None
-		else "no scale - show your hand"
-	)
-	scale_color = COLOR_WHITE if mm_per_px is not None else COLOR_YELLOW
+	scale_text = f"auto scale {mm_per_px:.3f} mm/px @ {height_mm:.0f} mm"
 	gate = f"{'auto' if auto_white else 'manual'} S<={sat_max} V>={val_min}"
 
 	cv2.putText(frame, f"White pixels: {white_px:,} / {total_px:,}  ({percent:.2f}%)",
 				(10, 20), FONT, 0.5, COLOR_WHITE, 1, cv2.LINE_AA)
 	cv2.putText(frame, f"White surfaces: {region_count}    {scale_text}",
-				(10, 38), FONT, 0.5, scale_color, 1, cv2.LINE_AA)
+				(10, 38), FONT, 0.5, COLOR_WHITE, 1, cv2.LINE_AA)
 	cv2.putText(frame, f"{gate}    FPS {fps:.1f}",
 				(10, 56), FONT, 0.5, COLOR_WHITE, 1, cv2.LINE_AA)
 
@@ -447,7 +470,7 @@ def draw_banner(frame, white_px, total_px, region_count, mm_per_px, fps,
 def draw_help(frame):
 	cv2.putText(
 		frame,
-		"t: auto/manual   S: a/d   V: w/s   m: mask   q: quit",
+		"t: auto/manual   S: a/d   V: w/s   height: [ ]   m: mask   q: quit",
 		(10, frame.shape[0] - 10),
 		FONT,
 		0.45,
@@ -473,11 +496,12 @@ show_mask = False
 tracker = SurfaceTracker()
 mask_accum = None
 
-# The hand ruler only exists while a hand is visible, so remember the last
-# scale it gave us and keep measuring surfaces for a few seconds after it
-# leaves - you need that hand free to hold the sheet you are measuring.
-last_mm_per_px = None
-last_scale_time = 0.0
+# Calibration is a standing property of the mounting, so it is worked out once
+# here and only recomputed if the working distance is nudged or the camera hands
+# back a different frame size than it was asked for.
+camera_height_mm = CAMERA_HEIGHT_MM
+mm_per_px = None
+scale_frame_w = None
 
 while True:
 	ret, frame = cap.read()
@@ -493,11 +517,20 @@ while True:
 	clean_frame = frame.copy()
 	frame_h, frame_w = frame.shape[:2]
 
+	# The camera rarely gives back exactly the size it was asked for, and the
+	# scale is per-pixel, so it is derived from the frame that actually arrived.
+	if mm_per_px is None or scale_frame_w != frame_w:
+		mm_per_px = compute_mm_per_pixel(frame_w, camera_height_mm)
+		scale_frame_w = frame_w
+
 	rgb_frame = cv2.cvtColor(clean_frame, cv2.COLOR_BGR2RGB)
 	rgb_frame.flags.writeable = False
 	hand_results = hands.process(rgb_frame)
 	rgb_frame.flags.writeable = True
 
+	# Hands are still tracked, but only so a bare hand in frame is not measured
+	# as if it were a white surface. Nothing about the scale depends on them any
+	# more, so the measurements are live whether or not anyone is at the bench.
 	hand_boxes = []
 	if hand_results.multi_hand_landmarks:
 		for hand_landmarks in hand_results.multi_hand_landmarks:
@@ -512,13 +545,6 @@ while True:
 			hand_boxes.append(
 				compute_hand_bbox(hand_landmarks.landmark, frame_w, frame_h)
 			)
-
-			mm_per_px = compute_mm_per_pixel(
-				hand_landmarks.landmark, frame_w, frame_h
-			)
-			if mm_per_px is not None:
-				last_mm_per_px = ema(last_mm_per_px, mm_per_px, SCALE_EMA)
-				last_scale_time = time.perf_counter()
 
 	if auto_white:
 		value_channel = cv2.cvtColor(clean_frame, cv2.COLOR_BGR2HSV)[:, :, 2]
@@ -555,10 +581,6 @@ while True:
 
 	surfaces = tracker.update(find_white_regions(mask, hand_areas))
 
-	fresh_scale = last_mm_per_px
-	if (time.perf_counter() - last_scale_time) >= SCALE_STALE_SECS:
-		fresh_scale = None
-
 	for i, surface in enumerate(surfaces, start=1):
 		quad = surface_quad(surface)
 		# A surface being coasted through a dropped frame is drawn dimmer, so a
@@ -578,18 +600,16 @@ while True:
 		# precision the shape does not support.
 		fit_note = "" if surface["is_quad"] else " (approx)"
 
-		if fresh_scale is not None:
-			long_mm = surface["long_px"] * fresh_scale
-			short_mm = surface["short_px"] * fresh_scale
-			# Area comes from the blob's own pixels, not from the outline, so an
-			# L-shaped or rounded surface is not reported as its bounding box.
-			area_mm2 = surface["area_px"] * (fresh_scale ** 2)
-			size_text = (f"WHITE #{surface['id']}  {long_mm:.0f} x "
-						 f"{short_mm:.0f} mm{fit_note}")
-			area_text = f"area: {area_mm2:,.0f} mm^2  ({area_mm2 / 100.0:,.1f} cm^2)"
-		else:
-			size_text = f"WHITE #{surface['id']}  -- mm (show hand to calibrate)"
-			area_text = f"area: {surface['area_px']:,.0f} px"
+		# The scale is always available now, so there is no "waiting to calibrate"
+		# state to fall back to - every surface is measured the frame it appears.
+		long_mm = surface["long_px"] * mm_per_px
+		short_mm = surface["short_px"] * mm_per_px
+		# Area comes from the blob's own pixels, not from the outline, so an
+		# L-shaped or rounded surface is not reported as its bounding box.
+		area_mm2 = surface["area_px"] * (mm_per_px ** 2)
+		size_text = (f"WHITE #{surface['id']}  {long_mm:.0f} x "
+					 f"{short_mm:.0f} mm{fit_note}")
+		area_text = f"area: {area_mm2:,.0f} mm^2  ({area_mm2 / 100.0:,.1f} cm^2)"
 
 		# Keep the two label lines on screen and clear of the banner, whatever
 		# corner of the frame the surface is sitting in.
@@ -614,11 +634,12 @@ while True:
 		white_px,
 		total_px,
 		len(surfaces),
-		fresh_scale,
+		mm_per_px,
 		fps,
 		sat_max,
 		gate,
 		auto_white,
+		camera_height_mm,
 	)
 	draw_help(view)
 
@@ -646,6 +667,13 @@ while True:
 			val_bias -= VAL_BIAS_STEP
 		else:
 			val_min = max(0, val_min - VAL_BIAS_STEP)
+	elif key in (ord("]"), ord("[")):
+		# Trim the calibration against something of known size: raising the
+		# assumed working distance widens the field the frame is said to cover,
+		# so every measurement grows with it, and lowering it shrinks them.
+		step = HEIGHT_STEP_MM if key == ord("]") else -HEIGHT_STEP_MM
+		camera_height_mm = max(MIN_CAMERA_HEIGHT_MM, camera_height_mm + step)
+		mm_per_px = compute_mm_per_pixel(scale_frame_w, camera_height_mm)
 
 
 
