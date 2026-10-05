@@ -25,7 +25,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLabel, QPushButton, QSlider,
     QCheckBox, QComboBox, QHBoxLayout, QVBoxLayout, QFrame, QSizePolicy,
-    QPlainTextEdit,
+    QPlainTextEdit, QDialog,
 )
 
 
@@ -65,6 +65,8 @@ ARM_SPEED        = 0.45
 FACE_DB_PATH     = os.path.join(BASE_DIR, "faces_db.npz")
 FACE_THRESHOLD   = 0.50
 FACE_EVERY_N     = 2
+FACE_UNLOCK_FRAMES = 3
+FACE_UNLOCK_TIMEOUT_S = 30.0
 
 SNAPSHOT_DIR     = "snapshots"
 LOG_DIR          = "logs"
@@ -1239,6 +1241,121 @@ def titled_card(title, body, color=C.TEXT):
 
 
 
+class FaceUnlockWorker(QThread):
+    preview = Signal(QImage)
+    status = Signal(str)
+
+    def __init__(self, cam_index, parent=None):
+        super().__init__(parent)
+        self.cam_index = cam_index
+        self.identity = None
+
+    def run(self):
+        cap = None
+        try:
+            self.status.emit("Loading face recognition...")
+            face = FaceRecognizer(FACE_DB_PATH, FACE_THRESHOLD, "cpu")
+            if not face.available:
+                self.status.emit(f"Face verification unavailable: {face.error}")
+                return
+            if not len(face.names):
+                self.status.emit("Face database is empty. Enrol a face first.")
+                return
+            if self.isInterruptionRequested():
+                return
+            cap = cv2.VideoCapture(self.cam_index, cv2.CAP_DSHOW)
+            if not cap.isOpened():
+                cap.release()
+                cap = cv2.VideoCapture(self.cam_index)
+            if not cap.isOpened():
+                self.status.emit("Cannot open camera for face verification.")
+                return
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
+            deadline = time.monotonic() + FACE_UNLOCK_TIMEOUT_S
+            candidate, streak = None, 0
+            while not self.isInterruptionRequested():
+                if time.monotonic() >= deadline:
+                    self.status.emit("Verification timed out. Close and try again.")
+                    return
+                ok, frame = cap.read()
+                if not ok:
+                    self.status.emit("Camera unavailable. START remains locked.")
+                    return
+                if FLIP_VIEW:
+                    frame = cv2.flip(frame, 1)
+                faces = face.identify(frame)
+                name = faces[0][0] if len(faces) == 1 else None
+                if name and name != "Unknown":
+                    streak = streak + 1 if name == candidate else 1
+                    candidate = name
+                    self.status.emit(f"Verifying {name}... {streak}/{FACE_UNLOCK_FRAMES}")
+                else:
+                    candidate, streak = None, 0
+                    self.status.emit("Show one enrolled face to unlock START.")
+                _draw_faces(frame, faces)
+                self.preview.emit(bgr_to_qimage(frame))
+                if streak >= FACE_UNLOCK_FRAMES:
+                    if not self.isInterruptionRequested():
+                        self.identity = candidate
+                    return
+        except Exception as exc:
+            self.status.emit(f"Face verification failed: {exc}")
+        finally:
+            if cap is not None:
+                cap.release()
+
+
+class FaceUnlockDialog(QDialog):
+    def __init__(self, cam_index, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Verify your face")
+        self.resize(660, 560)
+        self.setStyleSheet(f"QDialog {{ background: {C.BG}; }}")
+        self.identity = None
+        self._cancelled = False
+        layout = QVBoxLayout(self)
+        self.view = VideoView("LOADING FACE RECOGNITION")
+        self.message = QLabel("Loading face recognition...")
+        self.message.setWordWrap(True)
+        note = QLabel("Any face enrolled in faces_db.npz can unlock this system.\n"
+                      "Camera matching does not verify liveness; a photo may unlock it.")
+        note.setWordWrap(True)
+        self.cancel = QPushButton("Cancel")
+        self.cancel.clicked.connect(self.reject)
+        layout.addWidget(self.view, 1)
+        layout.addWidget(self.message)
+        layout.addWidget(note)
+        layout.addWidget(self.cancel)
+        self.worker = FaceUnlockWorker(cam_index, self)
+        self.worker.preview.connect(self.view.set_image)
+        self.worker.status.connect(self.message.setText)
+        self.worker.finished.connect(self._finished)
+        self.worker.start()
+
+    def _finished(self):
+        if self._cancelled:
+            super().reject()
+        elif self.worker.identity is not None:
+            self.identity = self.worker.identity
+            self.accept()
+        else:
+            self.cancel.setText("Close")
+
+    def reject(self):
+        self._cancelled = True
+        if self.worker.isRunning():
+            self.worker.requestInterruption()
+            self.cancel.setEnabled(False)
+            self.message.setText("Closing camera; please wait...")
+        else:
+            super().reject()
+
+    def closeEvent(self, event):
+        event.ignore()
+        self.reject()
+
+
 class MainWindow(QMainWindow):
 
     def __init__(self):
@@ -1258,6 +1375,7 @@ class MainWindow(QMainWindow):
         self._log_path = None
         self._last_safe = None
         self._last_collision = False
+        self._authenticated_identity = None
 
         self._build_ui()
         self._connect_workers()
@@ -1342,7 +1460,15 @@ class MainWindow(QMainWindow):
         self.btn_start.setFixedWidth(150)
         self.btn_start.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
         self.btn_start.clicked.connect(self.toggle_monitor)
-        lay.addWidget(self.btn_start)
+        self.btn_start.setEnabled(False)
+        self.btn_start.setToolTip("Verify an enrolled face to unlock START")
+        self.btn_unlock = QPushButton("Verify face")
+        self.btn_unlock.setFixedWidth(150)
+        self.btn_unlock.clicked.connect(self._verify_face)
+        start_controls = QVBoxLayout()
+        start_controls.addWidget(self.btn_unlock)
+        start_controls.addWidget(self.btn_start, 1)
+        lay.addLayout(start_controls)
 
         sliders = QVBoxLayout(); sliders.setSpacing(8)
         self.sld_conf, conf_box = self._slider_row(
@@ -1429,15 +1555,38 @@ class MainWindow(QMainWindow):
     def toggle_monitor(self):
         self._stop_monitor() if self.vision.isRunning() else self._start_monitor()
 
+    def _verify_face(self):
+        if self.vision.isRunning() or self.arm.isRunning():
+            self._log("Wait for the subsystems to stop before verifying your face.")
+            return
+        dialog = FaceUnlockDialog(self.vision.cam_index, self)
+        try:
+            if dialog.exec() == QDialog.Accepted and dialog.identity:
+                self._authenticated_identity = dialog.identity
+                self.btn_start.setEnabled(True)
+                self.btn_start.setToolTip(f"Verified: {dialog.identity}")
+                self.btn_unlock.setText("Face verified")
+                self.btn_unlock.setEnabled(False)
+                self._log(f"START unlocked for {dialog.identity}")
+        finally:
+            dialog.deleteLater()
+
     def _restyle(self, btn, name):
         btn.setObjectName(name)
         self.style().unpolish(btn); self.style().polish(btn)
 
     def _start_monitor(self):
+        if self._authenticated_identity is None:
+            self._log("START locked. Click Verify face first.")
+            return
+        if self.vision.isRunning() or self.arm.isRunning():
+            self._log("Wait for the subsystems to stop before restarting.")
+            return
         self._t_start = time.time()
         self._last_safe = None
         self._last_collision = False
         self._open_session_log()
+        self._log(f"Face access granted: {self._authenticated_identity}")
         self.btn_start.setText("STOP"); self._restyle(self.btn_start, "danger")
         self.btn_snapshot.setEnabled(True)
         self.view_cam.set_placeholder("INITIALISING  •  loading YOLOv8 + MediaPipe ...")
@@ -1455,6 +1604,11 @@ class MainWindow(QMainWindow):
         self.vision.stop(); self.vision.wait(2000)
         self.arm.stop(); self.arm.wait(2000)
         self.btn_start.setText("START"); self._restyle(self.btn_start, "primary")
+        self._authenticated_identity = None
+        self.btn_start.setEnabled(False)
+        self.btn_start.setToolTip("Verify an enrolled face to unlock START")
+        self.btn_unlock.setText("Verify face")
+        self.btn_unlock.setEnabled(True)
         self.btn_snapshot.setEnabled(False)
         self.view_cam.clear(); self.view_arm.clear()
         self.audio.stop_buzzer(); self._was_red = False
